@@ -1,367 +1,530 @@
-# app.py
-import os, time, threading, json, random, datetime, traceback
-from flask import Flask, request, jsonify, render_template_string
-from instagrapi import Client
+"""
+app.py - Flask web UI + Instagram welcome bot controller (single-file)
 
-APP_DIR = os.path.dirname(__file__)
-SESSION_FILE = os.path.join(APP_DIR, "session.json")
-MESSAGES_FILE = os.path.join(APP_DIR, "messages.txt")
-WELCOMED_FILE = os.path.join(APP_DIR, "welcomed_users.json")
-LOG_FILE = os.path.join(APP_DIR, "bot_log.txt")
+Usage:
+    pip install flask instagrapi
+    python app.py
+Then open http://127.0.0.1:5000
 
-app = Flask(__name__)
-run_lock = threading.Lock()
-last_log_tail = 0
-
-INDEX_HTML = r"""
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Sessioni — Manual IG Runner</title>
-  <style>
-    :root{--accent:#7c5cff;--bg:#061226;color:#eaf0ff}
-    body{margin:0;font-family:Inter,system-ui,Arial;background:linear-gradient(180deg,#020214,#061226);color:var(--bg);color:#eaf0ff}
-    .wrap{max-width:900px;margin:28px auto;padding:22px;background:rgba(0,0,0,0.18);border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
-    h1{color:var(--accent);margin:0 0 12px}
-    label{display:block;margin-top:8px;color:#cfe8ff;font-size:13px}
-    input,textarea,select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#eaf0ff;margin-top:6px}
-    .row{display:flex;gap:8px}
-    button{padding:10px 12px;border-radius:8px;border:none;background:linear-gradient(90deg,#7c5cff,#5ec2ff);color:#021026;font-weight:700;cursor:pointer}
-    .small{font-size:12px;color:rgba(255,255,255,0.6);margin-top:6px}
-    pre.logs{height:320px;overflow:auto;background:rgba(0,0,0,0.25);padding:10px;border-radius:8px}
-    .hint{font-size:13px;color:#d8eaff;background:rgba(0,0,0,0.18);padding:8px;border-radius:8px;margin-top:8px}
-    .danger{color:#ffd0d0}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Sessioni — Manual IG Runner</h1>
-
-    <section>
-      <h3>1) Upload / Use session.json</h3>
-      <form id="sessionForm">
-        <input id="sessionFile" type="file" accept=".json" />
-        <div style="margin-top:8px"><button type="submit">Upload session.json</button></div>
-      </form>
-      <div id="sessionStatus" class="small"></div>
-      <div class="hint">If you have a valid <code>session.json</code>, upload it — you won't need username/password. If not, provide username/password below to create a new session.</div>
-    </section>
-
-    <section>
-      <h3>2) Upload messages.txt</h3>
-      <form id="msgForm">
-        <input id="msgFile" type="file" accept=".txt" />
-        <div style="margin-top:8px"><button type="submit">Upload messages.txt</button></div>
-      </form>
-      <div id="msgStatus" class="small"></div>
-      <div class="hint">Use <code>===</code> on separate lines to split multiple messages. Use <code>{username}</code> placeholder to mention the user.</div>
-    </section>
-
-    <section>
-      <h3>3) Inputs</h3>
-      <label>Group IDs (comma separated)</label>
-      <input id="groupIds" placeholder="24632887389663044, 123456..." />
-      <label>Task ID (any short name to identify this run)</label>
-      <input id="taskId" placeholder="task1" />
-      <label>Username (optional if session.json present)</label>
-      <input id="username" placeholder="instagram_username" />
-      <label>Password (optional)</label>
-      <input id="password" type="password" placeholder="password" />
-      <label>Restart interval (hours) — used only if creating new session</label>
-      <input id="restart_interval" type="number" value="24" min="1" />
-      <div style="margin-top:8px" class="row">
-        <button id="runBtn">Run Once (manual)</button>
-        <button id="clearWelcomed">Clear welcomed_users.json</button>
-      </div>
-      <div id="runStatus" class="small"></div>
-      <div class="hint">This does a single-pass: checks current threads for members who were not welcomed and sends messages once. It does NOT run continuously.</div>
-      <div class="hint danger">Do not use on production accounts for spam — use test accounts only.</div>
-    </section>
-
-    <section>
-      <h3>4) Logs</h3>
-      <pre id="logs" class="logs">{{ logs }}</pre>
-      <div style="margin-top:6px"><button id="refreshLogs">Refresh</button></div>
-    </section>
-  </div>
-
-<script>
-  async function postForm(url, form) {
-    const fd = new FormData();
-    for (const el of form.querySelectorAll('input[type=file]')) {
-      if (el.files[0]) fd.append(el.name || 'file', el.files[0]);
-    }
-    const res = await fetch(url, { method:'POST', body: fd });
-    return res.json();
-  }
-
-  document.getElementById('sessionForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = document.getElementById('sessionFile').files[0];
-    if (!f) return alert('Choose session.json file');
-    const fd = new FormData(); fd.append('session', f);
-    const r = await fetch('/upload-session',{method:'POST',body:fd});
-    const j = await r.json();
-    document.getElementById('sessionStatus').textContent = j.message;
-  });
-
-  document.getElementById('msgForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = document.getElementById('msgFile').files[0];
-    if (!f) return alert('Choose messages.txt file');
-    const fd = new FormData(); fd.append('messages', f);
-    const r = await fetch('/upload-messages',{method:'POST',body:fd});
-    const j = await r.json();
-    document.getElementById('msgStatus').textContent = j.message;
-  });
-
-  document.getElementById('runBtn').addEventListener('click', async () => {
-    const group_ids = document.getElementById('groupIds').value;
-    const task_id = document.getElementById('taskId').value || ('manual_'+Date.now());
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
-    const restart_interval = document.getElementById('restart_interval').value;
-    if (!group_ids) return alert('Enter group IDs');
-    document.getElementById('runStatus').textContent = 'Starting run...';
-    const r = await fetch('/run-once', {
-      method:'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({group_ids, task_id, username, password, restart_interval})
-    });
-    const j = await r.json();
-    document.getElementById('runStatus').textContent = j.message || JSON.stringify(j);
-  });
-
-  document.getElementById('refreshLogs').addEventListener('click', async () => {
-    const r = await fetch('/logs'); const j = await r.json();
-    document.getElementById('logs').textContent = j.logs;
-  });
-
-  document.getElementById('clearWelcomed').addEventListener('click', async () => {
-    if (!confirm('Clear welcomed_users.json? This forgets who was welcomed.')) return;
-    const r = await fetch('/clear-welcomed', { method:'POST' }); const j = await r.json();
-    alert(j.message);
-  });
-
-  // auto-refresh logs every 3s
-  setInterval(async () => {
-    const r = await fetch('/logs'); const j = await r.json();
-    document.getElementById('logs').textContent = j.logs;
-  }, 3000);
-</script>
-</body>
-</html>
+Files created/used by the app:
+ - uploaded session files saved to ./uploads/session.json
+ - uploaded welcome messages saved to ./uploads/welcome_messages.txt
+ - welcomed cache saved to ./welcomed_cache.json
 """
 
-# Logging helper
-def write_log(line):
-    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    full = f"[{ts}] {line}"
-    print(full, flush=True)
+import os
+import time
+import json
+import threading
+from datetime import datetime
+from flask import (
+    Flask, request, render_template_string, redirect, url_for, flash, jsonify, send_file
+)
+from werkzeug.utils import secure_filename
+
+# pip install instagrapi
+from instagrapi import Client
+
+# --------------- CONFIG ---------------
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+SESSION_PATH = os.path.join(UPLOAD_FOLDER, "session.json")
+WELCOME_PATH = os.path.join(UPLOAD_FOLDER, "welcome_messages.txt")
+WELCOME_CACHE = "welcomed_cache.json"
+LOG_FILE = "bot_logs.txt"
+
+# Flask app
+app = Flask(__name__)
+app.secret_key = "replace-with-a-secure-random-key"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB upload limit
+
+# Bot runtime globals
+bot_thread = None
+bot_thread_lock = threading.Lock()
+bot_stop_event = None
+bot_task_id = None
+bot_status = {"running": False, "task_id": None, "started_at": None, "last_ping": None}
+bot_logs = []
+
+# Simple helper for logs
+def log(msg):
+    line = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+    bot_logs.append(line)
+    # trim logs kept in-memory to avoid memory growth
+    if len(bot_logs) > 2000:
+        del bot_logs[:500]
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(full + "\n")
-    except Exception as e:
-        print("Failed write log:", e)
+            f.write(line + "\n")
+    except Exception:
+        pass
+    print(line)
 
-def load_messages():
-    if not os.path.exists(MESSAGES_FILE):
-        return []
-    try:
-        with open(MESSAGES_FILE, "r", encoding="utf-8") as f:
-            content = f.read()
-        msgs = [m.strip() for m in content.split("===") if m.strip()]
-        write_log(f"✅ Loaded {len(msgs)} messages from messages.txt")
-        return msgs
-    except Exception as e:
-        write_log(f"⚠️ Error loading messages: {e}")
-        return []
-
-def load_welcomed():
-    if os.path.exists(WELCOMED_FILE):
+# Save/load welcomed cache to persist between restarts
+def load_welcomed_cache():
+    if os.path.exists(WELCOME_CACHE):
         try:
-            with open(WELCOMED_FILE, "r", encoding="utf-8") as f:
+            with open(WELCOME_CACHE, "r", encoding="utf-8") as f:
                 return set(json.load(f))
         except Exception:
             return set()
     return set()
 
-def save_welcomed(s):
+def save_welcomed_cache(cache_set):
     try:
-        with open(WELCOMED_FILE, "w", encoding="utf-8") as f:
-            json.dump(list(s), f)
+        with open(WELCOME_CACHE, "w", encoding="utf-8") as f:
+            json.dump(list(cache_set), f)
     except Exception as e:
-        write_log(f"⚠️ Could not save welcomed users: {e}")
+        log(f"Error saving welcomed cache: {e}")
 
-def ensure_session(cl, username=None, password=None):
-    # Prefer session.json if present
-    if os.path.exists(SESSION_FILE):
-        try:
-            with open(SESSION_FILE, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-            cl.set_settings(settings)
-            write_log("🔄 Loaded session.json")
-            return True
-        except Exception as e:
-            write_log(f"⚠️ Failed to load session.json: {e}")
-    # If no session, try login if creds provided
-    if username and password:
-        try:
-            cl.login(username, password)
-            with open(SESSION_FILE, "w", encoding="utf-8") as f:
-                json.dump(cl.get_settings(), f)
-            write_log("🔐 Logged in with credentials and saved session.json")
-            return True
-        except Exception as e:
-            write_log(f"❌ Login failed: {e}")
-            return False
-    write_log("ℹ️ No session.json and no credentials provided")
-    return False
+# ---------------- Bot worker ----------------
+def instagram_bot_worker(task_id, cfg, stop_event):
+    """
+    cfg is a dict:
+    {
+      "username": str or None,
+      "password": str or None,
+      "session_file": path or None,
+      "group_ids": [str,...],
+      "welcome_mode": "file"|"single"|"split_by_line",
+      "welcome_file": path or None,
+      "single_message": str or None,
+      "delay": float (seconds between messages),
+      "poll_interval": float (seconds between checks of new members)
+    }
+    """
+    log(f"Task {task_id}: starting bot")
+    bot_status["running"] = True
+    bot_status["task_id"] = task_id
+    bot_status["started_at"] = datetime.now().isoformat()
+    cl = Client()
 
-def process_group_once(cl, gid, username, messages, welcomed):
-    """Check a single group thread id once and send messages to new users found."""
+    # Load session if exists
     try:
-        thread = cl.direct_thread(gid)
+        if cfg.get("session_file") and os.path.exists(cfg["session_file"]):
+            try:
+                with open(cfg["session_file"], "r", encoding="utf-8") as f:
+                    settings = json.load(f)
+                cl.set_settings(settings)
+                log("Loaded session settings from uploaded file.")
+                # try login using saved settings
+                cl.login(cfg.get("username") or "", cfg.get("password") or "")
+                log("Session login OK (via settings).")
+            except Exception as e:
+                log(f"Saved session load failed: {e}. Will attempt fresh login if credentials provided.")
+        elif os.path.exists(SESSION_PATH):
+            try:
+                with open(SESSION_PATH, "r", encoding="utf-8") as f:
+                    settings = json.load(f)
+                cl.set_settings(settings)
+                cl.login(cfg.get("username") or "", cfg.get("password") or "")
+                log("Loaded local session.json and logged in.")
+            except Exception as e:
+                log(f"Local session load failed: {e}")
+        else:
+            log("No session available.")
     except Exception as e:
-        write_log(f"⚠️ Could not fetch thread {gid}: {e}")
-        return []
-    results = []
-    for user in thread.users:
-        try:
-            if user.username == username:  # skip self
-                continue
-            if user.username in welcomed:
-                continue
-            # send messages sequentially (with small safe delay)
-            for msg in messages:
-                text = msg.replace("{username}", f"@{user.username}")
+        log(f"Session handling error: {e}")
+
+    # If not logged in, try fresh login with username/password
+    try:
+        if not cl.authenticated:
+            if cfg.get("username") and cfg.get("password"):
+                log("Attempting fresh login with username & password...")
+                cl.login(cfg["username"], cfg["password"])
+                # save session to SESSION_PATH
                 try:
-                    cl.direct_send(text, thread_ids=[gid])
-                    write_log(f"✅ Sent to @{user.username} in thread {gid}: {text[:50]}...")
+                    with open(SESSION_PATH, "w", encoding="utf-8") as f:
+                        json.dump(cl.get_settings(), f)
+                    log("Saved new session to " + SESSION_PATH)
                 except Exception as e:
-                    write_log(f"⚠️ Error sending to @{user.username}: {e}")
-                    # If rate-limited, break and bubble up
-                    if "rate" in str(e).lower() or "limit" in str(e).lower() or "Please wait" in str(e):
-                        write_log("⏸️ Detected rate-limit while sending; pausing further sends in this run.")
-                        return [{"user": user.username, "ok": False, "error": str(e)}]
-                time.sleep(random.randint(6, 12))
-            welcomed.add(user.username)
-            save_welcomed(welcomed)
-            results.append({"user": user.username, "ok": True})
-        except Exception as e:
-            write_log(f"⚠️ Error processing user in thread {gid}: {e}")
-            results.append({"user": getattr(user, "username", "unknown"), "ok": False, "error": str(e)})
-    return results
+                    log(f"Failed to save session: {e}")
+            else:
+                log("Not authenticated and no credentials supplied. Bot cannot proceed.")
+                bot_status["running"] = False
+                return
+        else:
+            log("Already authenticated.")
+    except Exception as e:
+        log(f"Login failed: {e}")
+        bot_status["running"] = False
+        return
+
+    # Prepare welcome messages
+    welcome_messages = []
+    try:
+        mode = cfg.get("welcome_mode", "file")
+        if mode == "file":
+            path = cfg.get("welcome_file") or WELCOME_PATH
+            if path and os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                # messages separated by '==='
+                welcome_messages = [m.strip() for m in content.split("===") if m.strip()]
+                log(f"Loaded {len(welcome_messages)} messages from file.")
+            else:
+                log("Welcome file not found.")
+        elif mode == "single":
+            single = cfg.get("single_message") or ""
+            # split by newline into multiple messages
+            welcome_messages = [line.strip() for line in single.splitlines() if line.strip()]
+            log(f"Using single-message input broken into {len(welcome_messages)} messages.")
+        elif mode == "split_by_line":
+            path = cfg.get("welcome_file") or WELCOME_PATH
+            if path and os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                # send each non-empty line separately:
+                welcome_messages = [line.strip() for line in content.splitlines() if line.strip()]
+                log(f"Loaded {len(welcome_messages)} lines as messages from file.")
+            else:
+                log("Welcome file not found (split_by_line).")
+        else:
+            log("Unknown welcome_mode; no messages loaded.")
+    except Exception as e:
+        log(f"Error preparing welcome messages: {e}")
+
+    if not welcome_messages:
+        log("No welcome messages to send. Stopping bot.")
+        bot_status["running"] = False
+        return
+
+    # Prepare group ids
+    group_ids = cfg.get("group_ids", [])
+    if isinstance(group_ids, str):
+        group_ids = [g.strip() for g in group_ids.split(",") if g.strip()]
+    log(f"Configured group IDs: {group_ids}")
+
+    # Load welcomed cache
+    welcomed = load_welcomed_cache()
+
+    delay = float(cfg.get("delay", 2))
+    poll_interval = float(cfg.get("poll_interval", 6))
+    log(f"Delay between messages: {delay}s, poll interval: {poll_interval}s")
+
+    # Helper to send messages for a user in a thread
+    def send_messages_to_thread(thread_id, target_username, target_user_pk=None):
+        for m in welcome_messages:
+            if stop_event.is_set():
+                return
+            msg = m.replace("{username}", target_username)
+            try:
+                # instagrapi direct_send expects thread_ids or user ids; we attempt with thread id first
+                cl.direct_send(msg, thread_ids=[thread_id])
+                log(f"Sent to @{target_username} in thread {thread_id}: {msg[:60]}")
+            except Exception as e:
+                # fallback: try with user id if available
+                try:
+                    if target_user_pk:
+                        cl.direct_send(msg, user_ids=[target_user_pk])
+                        log(f"Fallback: sent to @{target_username} by user id.")
+                    else:
+                        log(f"Send failed for @{target_username} in thread {thread_id}: {e}")
+                except Exception as e2:
+                    log(f"Final send error for @{target_username}: {e2}")
+            time.sleep(delay)
+
+    # MAIN LOOP: poll threads, find users, welcome new ones
+    try:
+        while not stop_event.is_set():
+            bot_status["last_ping"] = datetime.now().isoformat()
+            for thread_id in group_ids:
+                if stop_event.is_set():
+                    break
+                try:
+                    # fetch thread
+                    thread = cl.direct_thread(thread_id)
+                    users = getattr(thread, "users", []) or []
+                    for user in users:
+                        if stop_event.is_set():
+                            break
+                        username = getattr(user, "username", None) or str(getattr(user, "pk", "unknown"))
+                        user_pk = getattr(user, "pk", None)
+                        # don't welcome self
+                        if username == cfg.get("username"):
+                            continue
+                        # check welcomed set
+                        key = f"{thread_id}::{username}"
+                        if key not in welcomed:
+                            log(f"New user detected: @{username} in thread {thread_id}")
+                            # send welcome messages (each message separately as requested)
+                            send_messages_to_thread(thread_id, username, target_user_pk=user_pk)
+                            welcomed.add(key)
+                            save_welcomed_cache(welcomed)
+                        else:
+                            # already welcomed
+                            pass
+                except Exception as e:
+                    log(f"Error reading thread {thread_id}: {e}")
+            # sleep poll interval
+            for _ in range(int(max(1, poll_interval))):
+                if stop_event.is_set():
+                    break
+                time.sleep(1)
+    except Exception as e:
+        log(f"Worker loop exception: {e}")
+    finally:
+        # cleanup
+        try:
+            bot_status["running"] = False
+            bot_status["task_id"] = None
+            log(f"Task {task_id}: stopped.")
+        except Exception:
+            pass
+
+
+# --------------- Flask routes & UI ---------------
+INDEX_HTML = """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Insta Multi Welcome Bot - Control Panel</title>
+  <style>
+    /* Neon + background */
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      min-height: 100vh;
+      background: radial-gradient(circle at 10% 10%, rgba(0,255,200,0.06), transparent 10%),
+                  linear-gradient(120deg, rgba(10,10,30,1), rgba(5,5,20,1));
+      color: #e6f7ff;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+    .card {
+      width: 100%;
+      max-width: 980px;
+      background: rgba(8,10,20,0.7);
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      padding: 26px;
+      border: 1px solid rgba(255,255,255,0.03);
+      position: relative;
+      overflow: hidden;
+    }
+    .neon-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: #00f6ff;
+      text-shadow:
+         0 0 6px rgba(0,246,255,0.25),
+         0 0 20px rgba(0,246,255,0.12);
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+    .subtitle { color: #9fd8e8; margin-bottom: 20px; display:block; }
+    form .row { display:flex; gap:12px; margin-bottom:12px; }
+    label { font-size:13px; color:#bfeffc; width:160px; }
+    input[type="text"], input[type="password"], textarea, select {
+      flex:1;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.02);
+      color: #eafcff;
+      font-size:14px;
+    }
+    .small { width:160px; }
+    button {
+      background: linear-gradient(90deg,#00f6ff,#7a4cff);
+      border: none;
+      padding:10px 14px;
+      color:#001218;
+      font-weight:700;
+      border-radius:10px;
+      cursor:pointer;
+    }
+    .btn-danger { background: linear-gradient(90deg,#ff5f6d,#ffc371); color:#111; }
+    .panel { margin-top:18px; display:flex; gap:18px; }
+    .panel > div { flex:1; background: rgba(255,255,255,0.02); padding:12px; border-radius:10px; min-height:150px; }
+    pre { white-space:pre-wrap; word-break:break-word; font-size:13px; color:#dff8ff; }
+    .muted { color:#8bbfcc; font-size:13px; }
+    .note { font-size:13px; color:#b8f3ff; margin-top:8px;}
+    .separator { height:1px; background: rgba(255,255,255,0.03); margin:12px 0; }
+    .footer { margin-top:12px; font-size:12px; color:#9fd8e8; }
+    /* animated background lines */
+    .bg-lines {
+      position:absolute; inset:0; pointer-events:none; opacity:0.06;
+      background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 40px);
+      transform: skewY(-3deg);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="bg-lines"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div class="neon-title">INSTA MULTI WELCOME BOT</div>
+        <div class="subtitle">Upload session.json • Upload welcome file • Start / Stop • Multi-group • 24/7</div>
+      </div>
+      <div class="muted">Status:
+        {% if status.running %}
+          <strong style="color:#aaffc7"> Running ({{ status.task_id }})</strong>
+        {% else %}
+          <strong style="color:#ffd6d6">Stopped</strong>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <form id="controlForm" method="post" action="/start" enctype="multipart/form-data">
+      <div class="row">
+        <label>Instagram Username</label>
+        <input name="username" type="text" placeholder="username (optional if session.json uploaded)" />
+      </div>
+
+      <div class="row">
+        <label>Password</label>
+        <input name="password" type="password" placeholder="password (only for fresh login)" />
+      </div>
+
+      <div class="row">
+        <label>Upload session.json</label>
+        <input name="session_file" type="file" accept=".json" />
+      </div>
+
+      <div class="row">
+        <label>Upload welcome_messages.txt</label>
+        <input name="welcome_file" type="file" accept=".txt" />
+      </div>
+
+      <div class="row">
+        <label>Or paste single welcome message</label>
+        <textarea name="single_message" rows="3" placeholder="Type message here. Use {username} placeholder. New lines become separate messages."></textarea>
+      </div>
+
+      <div class="row">
+        <label>Welcome mode</label>
+        <select name="welcome_mode">
+          <option value="file">File (use === to separate messages)</option>
+          <option value="single">Single message (split by newline)</option>
+          <option value="split_by_line">Split by line (each line = message)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Group Chat IDs (comma separated)</label>
+        <input name="group_ids" type="text" placeholder="e.g. 24632887389663044, 123456789012345" />
+      </div>
+
+      <div class="row">
+        <label>Delay between messages (sec)</label>
+        <input name="delay" type="text" value="2" class="small" />
+        <label style="width:120px">Poll interval (sec)</label>
+        <input name="poll_interval" type="text" value="6" class="small" />
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:12px;">
+        <button type="submit">Start Bot</button>
+        <button formaction="/stop" formmethod="post" class="btn-danger">Stop Bot</button>
+        <a href="/download_sample" style="text-decoration:none"><button type="button">Download sample welcome file</button></a>
+      </div>
+    </form>
+
+    <div class="panel">
+      <div>
+        <h4 style="margin:6px 0">Logs</h4>
+        <pre id="logs">{{ logs }}</pre>
+      </div>
+      <div>
+        <h4 style="margin:6px 0">Runtime Info</h4>
+        <div class="note"><b>Task ID:</b> {{ status.task_id or '—' }}</div>
+        <div class="note"><b>Started at:</b> {{ status.started_at or '—' }}</div>
+        <div class="note"><b>Last ping:</b> {{ status.last_ping or '—' }}</div>
+        <div class="note"><b>Welcomed cache size:</b> {{ welcomed_count }}</div>
+      </div>
+    </div>
+
+    <div class="footer">Tip: Use private server, keep credentials safe. Replace background image in CSS if desired.</div>
+  </div>
+
+  <script>
+    // Poll logs every 4s
+    setInterval(() => {
+      fetch("/status").then(r => r.json()).then(data => {
+        document.getElementById("logs").innerText = data.logs.join("\\n");
+      }).catch(e => {});
+    }, 4000);
+  </script>
+</body>
+</html>
+"""
 
 @app.route("/")
 def index():
-    # show tail of log file
-    logs = ""
-    try:
-        if os.path.exists(LOG_FILE):
-            with open(LOG_FILE, "r", encoding="utf-8") as f:
-                logs = f.read()[-20000:]
-    except Exception:
-        logs = ""
-    return render_template_string(INDEX_HTML, logs=logs)
+    # show last 200 log lines
+    small_logs = bot_logs[-400:]
+    welcomed = load_welcomed_cache()
+    return render_template_string(
+        INDEX_HTML,
+        logs="\n".join(small_logs[::-1]) if small_logs else "No logs yet.",
+        status=bot_status,
+        welcomed_count=len(welcomed)
+    )
 
-@app.route("/upload-session", methods=["POST"])
-def upload_session():
-    f = request.files.get("session")
-    if not f:
-        return jsonify(ok=False, message="No file uploaded"), 400
-    try:
-        f.save(SESSION_FILE)
-        write_log("📁 session.json uploaded via UI")
-        return jsonify(ok=True, message="session.json uploaded")
-    except Exception as e:
-        write_log(f"⚠️ Upload session failed: {e}")
-        return jsonify(ok=False, message=str(e)), 500
+@app.route("/download_sample")
+def download_sample():
+    sample = (
+        "Hey @{username} 👋 Welcome to the group! 🚀\n"
+        "===\n"
+        "🎉 @{username}, glad to have you here! 🥳\n"
+        "===\n"
+        "Welcome, @{username}!\n"
+        "▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒\n"
+        "🚀 Let's make this place awesome!\n"
+    )
+    path = os.path.join(UPLOAD_FOLDER, "sample_welcome.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(sample)
+    return send_file(path, as_attachment=True, download_name="welcome_messages_sample.txt")
 
-@app.route("/upload-messages", methods=["POST"])
-def upload_messages():
-    f = request.files.get("messages")
-    if not f:
-        return jsonify(ok=False, message="No file uploaded"), 400
-    try:
-        f.save(MESSAGES_FILE)
-        write_log("📁 messages.txt uploaded via UI")
-        return jsonify(ok=True, message="messages.txt uploaded (use === to separate messages)")
-    except Exception as e:
-        write_log(f"⚠️ Upload messages failed: {e}")
-        return jsonify(ok=False, message=str(e)), 500
+@app.route("/start", methods=["POST"])
+def start_bot():
+    global bot_thread, bot_stop_event, bot_task_id
 
-@app.route("/run-once", methods=["POST"])
-def run_once():
-    # Single-run manual execution triggered by user
-    data = request.json or {}
-    group_ids_raw = data.get("group_ids", "")
-    task_id = data.get("task_id") or f"manual_{int(time.time())}"
-    username = data.get("username")
-    password = data.get("password")
-    restart_interval = int(data.get("restart_interval", 24))
-    group_ids = [g.strip() for g in group_ids_raw.split(",") if g.strip()]
-    if not group_ids:
-        return jsonify(ok=False, message="Provide at least one group ID"), 400
+    # if already running, return
+    if bot_status.get("running"):
+        flash("Bot already running", "info")
+        return redirect(url_for("index"))
 
-    # Acquire lock to prevent concurrent manual runs
-    if not run_lock.acquire(blocking=False):
-        return jsonify(ok=False, message="Another run is in progress. Try later."), 429
+    username = request.form.get("username") or ""
+    password = request.form.get("password") or ""
+    group_ids = request.form.get("group_ids") or ""
+    delay = request.form.get("delay") or "2"
+    poll_interval = request.form.get("poll_interval") or "6"
+    welcome_mode = request.form.get("welcome_mode") or "file"
+    single_message = request.form.get("single_message") or ""
 
-    def worker():
-        try:
-            write_log(f"▶️ Manual run started (task_id={task_id}) for groups: {group_ids}")
-            cl = Client()
-            if not ensure_session(cl, username, password):
-                write_log("❌ Session/login failed — aborting manual run.")
-                return
-            messages = load_messages()
-            if not messages:
-                write_log("❌ No messages loaded — aborting.")
-                return
-            welcomed = load_welcomed()
-            for gid in group_ids:
-                if gid == "":
-                    continue
-                write_log(f"🔎 Checking group thread {gid} ...")
-                try:
-                    res = process_group_once(cl, gid, username or cl.username, messages, welcomed)
-                    write_log(f"ℹ️ Results for {gid}: {res}")
-                except Exception as e:
-                    write_log(f"⚠️ Error during processing group {gid}: {e}")
-            write_log(f"✅ Manual run (task_id={task_id}) completed.")
-        except Exception as e:
-            write_log(f"🛑 Worker crashed: {e}")
-            write_log(traceback.format_exc())
-        finally:
-            run_lock.release()
+    # handle file uploads
+    session_file_path = None
+    if "session_file" in request.files:
+        f = request.files["session_file"]
+        if f and f.filename:
+            fname = secure_filename(f.filename)
+            dest = os.path.join(app.config["UPLOAD_FOLDER"], "uploaded_session.json")
+            f.save(dest)
+            session_file_path = dest
+            log(f"Uploaded session file saved to {dest}")
 
-    t = threading.Thread(target=worker, daemon=True)
-    t.start()
-    return jsonify(ok=True, message=f"Manual run started (task_id={task_id}) — check logs.")
+    welcome_file_path = None
+    if "welcome_file" in request.files:
+        f = request.files["welcome_file"]
+        if f and f.filename:
+            fname = secure_filename(f.filename)
+            dest = os.path.join(app.config["UPLOAD_FOLDER"], "uploaded_welcome.txt")
+            f.save(dest)
+            welcome_file_path = dest
+            log(f"Uploaded welcome file saved to {dest}")
 
-@app.route("/clear-welcomed", methods=["POST"])
-def clear_welcomed():
-    try:
-        if os.path.exists(WELCOMED_FILE):
-            os.remove(WELCOMED_FILE)
-        return jsonify(ok=True, message="welcomed_users cleared")
-    except Exception as e:
-        return jsonify(ok=False, message=str(e)), 500
-
-@app.route("/logs")
-def logs():
-    try:
-        content = ""
-        if os.path.exists(LOG_FILE):
-            with open(LOG_FILE, "r", encoding="utf-8") as f:
-                content = f.read()[-20000:]
-    except Exception:
-        content = ""
-    return jsonify(ok=True, logs=content)
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    # if welcome file not uploaded but a server-side welcome file exists, use that
+    if not w
