@@ -18,7 +18,7 @@ def log(msg):
     print(msg)
 
 
-def run_bot(username, password, welcome_messages, group_ids, delay, poll_interval, use_name):
+def run_bot(username, password, welcome_messages, group_ids, delay, poll_interval, use_name, target_username):
     cl = Client()
     try:
         if os.path.exists(SESSION_FILE):
@@ -43,7 +43,12 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
                 try:
                     group = cl.direct_thread(gid)
                     for user in group.users:
+                        # Skip if already welcomed or if it's the bot itself
                         if user.pk not in welcomed_users and user.username != username:
+                            # Check if target username is specified
+                            if target_username and user.username.lower() != target_username.lower():
+                                continue  # Skip this user, not the target
+                            
                             # Send ALL welcome messages to this user
                             for msg in welcome_messages:
                                 # Add user's name if enabled
@@ -85,12 +90,13 @@ def start_bot():
     delay = int(request.form.get("delay", 3))
     poll = int(request.form.get("poll", 10))
     use_name = request.form.get("use_name") == "yes"
+    target_username = request.form.get("target_username", "").strip()
 
     if not username or not password or not group_ids or not welcome:
-        return jsonify({"message": "⚠️ Please fill all fields."})
+        return jsonify({"message": "⚠️ Please fill all required fields."})
 
     STOP_EVENT.clear()
-    BOT_THREAD = threading.Thread(target=run_bot, args=(username, password, welcome, group_ids, delay, poll, use_name))
+    BOT_THREAD = threading.Thread(target=run_bot, args=(username, password, welcome, group_ids, delay, poll, use_name, target_username))
     BOT_THREAD.start()
     log("🚀 Bot thread started.")
     return jsonify({"message": "✅ Bot started successfully!"})
@@ -176,6 +182,14 @@ label {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+.label-subtitle {
+  font-size: 13px;
+  color: #43e97b;
+  font-weight: 400;
+  text-transform: none;
+  margin-top: 5px;
 }
 
 input, textarea, select {
@@ -356,6 +370,16 @@ h3 {
   color: #00eaff;
 }
 
+.highlight-box {
+  background: rgba(255,165,0,0.1);
+  border: 2px solid rgba(255,165,0,0.4);
+  border-radius: 15px;
+  padding: 15px;
+  margin-top: 10px;
+  color: #ffa500;
+  font-size: 14px;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 40px 25px;
@@ -400,10 +424,11 @@ h3 {
     <h1>🤖 INSTA MULTI WELCOME BOT 🤖</h1>
     
     <div class="info-box">
-      <strong>✨ NEW FEATURES:</strong><br>
+      <strong>✨ ALL FEATURES:</strong><br>
       • 📤 <strong>Multiple Messages:</strong> All messages will be sent to each new member (one by one)<br>
       • 👤 <strong>Username Tagging:</strong> Automatically mention user's name in messages (@username)<br>
-      • 📁 <strong>TXT File Upload:</strong> Upload welcome messages from a text file
+      • 📁 <strong>TXT File Upload:</strong> Upload welcome messages from a text file<br>
+      • 🎯 <strong>Target Specific User:</strong> Send welcome messages to a specific username only
     </div>
 
     <form id="botForm">
@@ -431,6 +456,17 @@ h3 {
             </label>
             <input type="file" id="fileUpload" class="file-upload-input" accept=".txt" onchange="handleFileUpload(event)">
             <div id="fileName" class="file-name"></div>
+          </div>
+        </div>
+
+        <div class="input-group full-width">
+          <label>
+            🎯 Target Username (Optional - किसी specific user को message भेजने के लिए)
+            <div class="label-subtitle">Leave empty to send to all new members | भरो तो सिर्फ उसी को message जाएगा</div>
+          </label>
+          <input type="text" name="target_username" placeholder="e.g. john_doe (optional - खाली छोड़ सकते हो)">
+          <div class="highlight-box">
+            💡 <strong>Example:</strong> अगर "rahul_123" डालोगे तो सिर्फ इस username वाले को ही welcome message जाएगा। खाली छोड़ो तो सभी new members को जाएगा।
           </div>
         </div>
 
