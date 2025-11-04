@@ -81,14 +81,14 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
                                 new_messages.append(msg)
                         
                         for msg in reversed(new_messages):
-                            if msg.user_id == cl.user_id:  # Skip bot's own messages
+                            if msg.user_id == cl.user_id:
                                 continue
                             
                             text = msg.text.strip().lower() if msg.text else ""
                             
                             # /help command
                             if text == "/help" or text == "!help":
-                                help_text = """🤖 *BOT COMMANDS*
+                                help_text = "🤖 BOT COMMANDS
 
 /help - Show this help menu
 /stats - Show welcome statistics
@@ -98,25 +98,25 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
 /time - Show current time
 /about - About this bot
 
-Type any command to use!"""
+Type any command to use!"
                                 cl.direct_send(help_text, thread_ids=[gid])
                                 log(f"📝 Sent help menu to group {gid}")
                             
                             # /stats command
                             elif text == "/stats" or text == "!stats":
-                                stats_text = f"""📊 *WELCOME STATISTICS*
+                                stats_text = f"📊 WELCOME STATISTICS
 
 Total Welcomed: {STATS['total_welcomed']}
 Today Welcomed: {STATS['today_welcomed']}
 Bot Status: ✅ Active
-Monitoring Groups: {len(group_ids)}"""
+Monitoring Groups: {len(group_ids)}"
                                 cl.direct_send(stats_text, thread_ids=[gid])
                                 log(f"📊 Sent stats to group {gid}")
                             
                             # /count command
                             elif text == "/count" or text == "!count":
                                 member_count = len(group.users)
-                                count_text = f"👥 *GROUP MEMBERS*
+                                count_text = f"👥 GROUP MEMBERS
 
 Total Members: {member_count} members"
                                 cl.direct_send(count_text, thread_ids=[gid])
@@ -138,7 +138,7 @@ Total Members: {member_count} members"
                             # /time command
                             elif text == "/time" or text == "!time":
                                 current_time = datetime.now().strftime("%I:%M %p, %d %b %Y")
-                                time_text = f"🕐 *CURRENT TIME*
+                                time_text = f"🕐 CURRENT TIME
 
 {current_time}"
                                 cl.direct_send(time_text, thread_ids=[gid])
@@ -146,7 +146,7 @@ Total Members: {member_count} members"
                             
                             # /about command
                             elif text == "/about" or text == "!about":
-                                about_text = """ℹ️ *ABOUT THIS BOT*
+                                about_text = "ℹ️ ABOUT THIS BOT
 
 Name: Instagram Welcome Bot
 Version: 2.0
@@ -156,7 +156,7 @@ Features:
 • Statistics tracking
 • 24/7 monitoring
 
-Created with ❤️"""
+Created with ❤️"
                                 cl.direct_send(about_text, thread_ids=[gid])
                                 log(f"ℹ️ Sent about info to group {gid}")
                         
@@ -664,7 +664,10 @@ h3 {
 
         <div class="input-group full-width">
           <label>💬 Welcome Messages (each line = 1 message)</label>
-          <textarea id="welcomeArea" name="welcome" placeholder="Enter multiple welcome messages here&#10;Line 1: Welcome to our group!&#10;Line 2: Glad you're here!&#10;Line 3: Feel free to introduce yourself!"></textarea>
+          <textarea id="welcomeArea" name="welcome" placeholder="Enter multiple welcome messages here
+Line 1: Welcome to our group!
+Line 2: Glad you're here!
+Line 3: Feel free to introduce yourself!"></textarea>
         </div>
 
         <div class="input-group full-width">
