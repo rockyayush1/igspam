@@ -18,7 +18,7 @@ def log(msg):
     print(msg)
 
 
-def run_bot(username, password, welcome_messages, group_ids, delay, poll_interval, use_name, target_username):
+def run_bot(username, password, welcome_messages, group_ids, delay, poll_interval, use_name, target_identifier):
     cl = Client()
     try:
         if os.path.exists(SESSION_FILE):
@@ -45,20 +45,34 @@ def run_bot(username, password, welcome_messages, group_ids, delay, poll_interva
                     for user in group.users:
                         # Skip if already welcomed or if it's the bot itself
                         if user.pk not in welcomed_users and user.username != username:
-                            # Check if target username is specified
-                            if target_username and user.username.lower() != target_username.lower():
-                                continue  # Skip this user, not the target
+                            # Check if target identifier is specified
+                            if target_identifier:
+                                # Check both username and full name
+                                user_matches = (
+                                    user.username.lower() == target_identifier.lower() or
+                                    user.full_name.lower() == target_identifier.lower()
+                                )
+                                if not user_matches:
+                                    continue  # Skip this user, not the target
+                            
+                            # Determine what name to use in messages
+                            if use_name:
+                                # If target_identifier matches full_name, use full_name, otherwise use username
+                                if target_identifier and user.full_name.lower() == target_identifier.lower():
+                                    display_name = user.full_name
+                                else:
+                                    display_name = f"@{user.username}"
                             
                             # Send ALL welcome messages to this user
                             for msg in welcome_messages:
-                                # Add user's name if enabled
+                                # Add user's name/username if enabled
                                 if use_name:
-                                    final_msg = f"@{user.username} {msg}"
+                                    final_msg = f"{display_name} {msg}"
                                 else:
                                     final_msg = msg
                                 
                                 cl.direct_send(final_msg, thread_ids=[gid])
-                                log(f"👋 Sent: '{final_msg}' to @{user.username} in group {gid}")
+                                log(f"👋 Sent: '{final_msg}' to @{user.username} (Name: {user.full_name}) in group {gid}")
                                 time.sleep(delay)
                             
                             welcomed_users.add(user.pk)
@@ -90,13 +104,13 @@ def start_bot():
     delay = int(request.form.get("delay", 3))
     poll = int(request.form.get("poll", 10))
     use_name = request.form.get("use_name") == "yes"
-    target_username = request.form.get("target_username", "").strip()
+    target_identifier = request.form.get("target_identifier", "").strip()
 
     if not username or not password or not group_ids or not welcome:
         return jsonify({"message": "⚠️ Please fill all required fields."})
 
     STOP_EVENT.clear()
-    BOT_THREAD = threading.Thread(target=run_bot, args=(username, password, welcome, group_ids, delay, poll, use_name, target_username))
+    BOT_THREAD = threading.Thread(target=run_bot, args=(username, password, welcome, group_ids, delay, poll, use_name, target_identifier))
     BOT_THREAD.start()
     log("🚀 Bot thread started.")
     return jsonify({"message": "✅ Bot started successfully!"})
@@ -426,9 +440,9 @@ h3 {
     <div class="info-box">
       <strong>✨ ALL FEATURES:</strong><br>
       • 📤 <strong>Multiple Messages:</strong> All messages will be sent to each new member (one by one)<br>
-      • 👤 <strong>Username Tagging:</strong> Automatically mention user's name in messages (@username)<br>
+      • 👤 <strong>Smart Name/Username:</strong> Automatically detects if you entered Name or Username<br>
       • 📁 <strong>TXT File Upload:</strong> Upload welcome messages from a text file<br>
-      • 🎯 <strong>Target Specific User:</strong> Send welcome messages to a specific username only
+      • 🎯 <strong>Target Specific User:</strong> Send welcome messages using NAME or USERNAME
     </div>
 
     <form id="botForm">
@@ -461,20 +475,24 @@ h3 {
 
         <div class="input-group full-width">
           <label>
-            🎯 Target Username (Optional - किसी specific user को message भेजने के लिए)
+            🎯 Target Name or Username (Optional - NAME या USERNAME दोनों काम करेगा)
             <div class="label-subtitle">Leave empty to send to all new members | भरो तो सिर्फ उसी को message जाएगा</div>
           </label>
-          <input type="text" name="target_username" placeholder="e.g. john_doe (optional - खाली छोड़ सकते हो)">
+          <input type="text" name="target_identifier" placeholder="e.g. Rahul Kumar या rahul_123 (optional - खाली छोड़ सकते हो)">
           <div class="highlight-box">
-            💡 <strong>Example:</strong> अगर "rahul_123" डालोगे तो सिर्फ इस username वाले को ही welcome message जाएगा। खाली छोड़ो तो सभी new members को जाएगा।
+            💡 <strong>Smart Detection Examples:</strong><br>
+            • अगर "Rahul Kumar" डालोगे → Message में दिखेगा: <strong>"Rahul Kumar Welcome!"</strong><br>
+            • अगर "rahul_123" डालोगे → Message में दिखेगा: <strong>"@rahul_123 Welcome!"</strong><br>
+            • Bot automatically detect करता है की आपने NAME दिया है या USERNAME<br>
+            • खाली छोड़ो तो सभी new members को जाएगा (with @username format)
           </div>
         </div>
 
         <div class="input-group full-width">
-          <label>👥 Add Username in Messages?</label>
+          <label>👥 Add Name/Username in Messages?</label>
           <select name="use_name">
-            <option value="yes">✅ Yes - Add @username at start of each message</option>
-            <option value="no">❌ No - Send messages without username</option>
+            <option value="yes">✅ Yes - Add Name/Username at start of each message</option>
+            <option value="no">❌ No - Send messages without Name/Username</option>
           </select>
         </div>
 
