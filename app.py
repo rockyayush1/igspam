@@ -445,4 +445,39 @@ def start_bot():
         "welcome_mode": welcome_mode,
         "welcome_file": welcome_file_path,
         "single_message": single_message,
-        "delay": f
+        "delay": float(delay),
+        "poll_interval": float(poll_interval)
+    }
+
+    bot_stop_event = threading.Event()
+    bot_task_id = f"TASK-{int(time.time())}"
+
+    bot_thread = threading.Thread(target=instagram_bot_worker, args=(bot_task_id, cfg, bot_stop_event), daemon=True)
+    bot_thread.start()
+    append_log(f"Started bot task {bot_task_id}")
+    return render_template_string(PAGE_HTML, logs="\n".join(bot_logs[-400:][::-1]), status=bot_status, welcomed_count=len(load_welcomed_cache()))
+
+@app.route("/stop", methods=["POST"])
+def stop_bot():
+    global bot_stop_event
+    if bot_stop_event:
+        bot_stop_event.set()
+        append_log("Stop signal sent to bot.")
+    else:
+        append_log("No active bot to stop.")
+    return render_template_string(PAGE_HTML, logs="\n".join(bot_logs[-400:][::-1]), status=bot_status, welcomed_count=len(load_welcomed_cache()))
+
+@app.route("/status")
+def status_api():
+    welcomed = load_welcomed_cache()
+    return jsonify({
+        "running": bot_status.get("running"),
+        "task_id": bot_status.get("task_id"),
+        "logs": bot_logs[-300:],
+        "welcomed_count": len(welcomed)
+    })
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    append_log(f"Starting Flask on 0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False)
