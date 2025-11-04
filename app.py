@@ -69,42 +69,29 @@ def run_bot(un, pw, wm, gids, dly, pol, ucn, ecmd):
                                 continue
                             t = m.text.strip().lower() if m.text else ""
                             if t in ["/help", "!help"]:
-                                ht = "COMMANDS
-/help /stats /count /welcome /ping /time /about"
-                                cl.direct_send(ht, thread_ids=[gid])
+                                cl.direct_send("COMMANDS: /help /stats /count /welcome /ping /time /about", thread_ids=[gid])
                                 log("Help sent to " + gid)
                             elif t in ["/stats", "!stats"]:
-                                st = "STATS
-Total: " + str(STATS['total_welcomed']) + "
-Today: " + str(STATS['today_welcomed'])
-                                cl.direct_send(st, thread_ids=[gid])
+                                cl.direct_send("STATS - Total: " + str(STATS['total_welcomed']) + " Today: " + str(STATS['today_welcomed']), thread_ids=[gid])
                                 log("Stats sent to " + gid)
                             elif t in ["/count", "!count"]:
                                 mc = len(g.users)
-                                ct = "MEMBERS
-Total: " + str(mc)
-                                cl.direct_send(ct, thread_ids=[gid])
+                                cl.direct_send("MEMBERS - Total: " + str(mc), thread_ids=[gid])
                                 log("Count sent to " + gid)
                             elif t in ["/welcome", "!welcome"]:
                                 s = next((u for u in g.users if u.pk == m.user_id), None)
                                 if s:
-                                    tm = "@" + s.username + " Test!"
-                                    cl.direct_send(tm, thread_ids=[gid])
+                                    cl.direct_send("@" + s.username + " Test welcome!", thread_ids=[gid])
                                     log("Test to @" + s.username)
                             elif t in ["/ping", "!ping"]:
-                                cl.direct_send("Pong!", thread_ids=[gid])
+                                cl.direct_send("Pong! Bot is alive!", thread_ids=[gid])
                                 log("Ping reply to " + gid)
                             elif t in ["/time", "!time"]:
                                 ct = datetime.now().strftime("%I:%M %p")
-                                tt = "TIME
-" + ct
-                                cl.direct_send(tt, thread_ids=[gid])
+                                cl.direct_send("TIME: " + ct, thread_ids=[gid])
                                 log("Time sent to " + gid)
                             elif t in ["/about", "!about"]:
-                                at = "ABOUT
-Insta Welcome Bot v2.0
-Auto-welcome + Commands"
-                                cl.direct_send(at, thread_ids=[gid])
+                                cl.direct_send("ABOUT - Insta Welcome Bot v2.0 - Auto-welcome + Commands", thread_ids=[gid])
                                 log("About sent to " + gid)
                         if g.messages:
                             lm[gid] = g.messages[0].id
@@ -190,8 +177,7 @@ def get_logs():
 def get_stats():
     return jsonify(STATS)
 
-PAGE_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INSTA BOT</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#0f2027;color:#fff;padding:20px}.c{max-width:900px;margin:0 auto;background:rgba(255,255,255,.1);border-radius:15px;padding:30px}h1{text-align:center;margin-bottom:20px;color:#00eaff}label{display:block;margin:10px 0 5px;color:#00eaff;font-weight:600}input,textarea,select{width:100%;padding:10px;border:2px solid rgba(0,234,255,.3);border-radius:8px;background:rgba(255,255,255,.1);color:#fff;font-size:14px}textarea{min-height:80px}button{padding:12px 25px;font-size:16px;font-weight:700;border:none;border-radius:8px;color:#fff;margin:8px 4px;cursor:pointer}.st{background:#00c6ff}.sp{background:#ff512f}.lb{background:rgba(0,0,0,.6);border-radius:12px;padding:15px;margin-top:25px;height:250px;overflow-y:auto;border:2px solid rgba(0,234,255,.3);font-family:monospace;font-size:13px}</style></head><body><div class="c"><h1>INSTA WELCOME BOT</h1><form id="f"><label>Username</label><input name="username" placeholder="Instagram username"><label>Password</label><input type="password" name="password" placeholder="Password"><label>Welcome Messages</label><textarea name="welcome" placeholder="Line 1
-Line 2"></textarea><label>Mention Username?</label><select name="use_custom_name"><option value="yes">Yes</option><option value="no">No</option></select><label>Enable Commands?</label><select name="enable_commands"><option value="yes">Yes</option><option value="no">No</option></select><label>Group IDs</label><input name="group_ids" placeholder="123,456"><label>Delay</label><input type="number" name="delay" value="3"><label>Check Interval</label><input type="number" name="poll" value="10"><div style="text-align:center;margin-top:15px"><button type="button" class="st" onclick="start()">Start</button><button type="button" class="sp" onclick="stop()">Stop</button></div></form><h3 style="text-align:center;margin-top:30px;color:#00eaff">Logs</h3><div class="lb" id="l">Start bot...</div></div><script>async function start(){let d=new FormData(document.getElementById('f'));let r=await fetch('/start',{method:'POST',body:d});let j=await r.json();alert(j.message)}async function stop(){let r=await fetch('/stop',{method:'POST'});let j=await r.json();alert(j.message)}async function getLogs(){let r=await fetch('/logs');let j=await r.json();document.getElementById('l').innerHTML=j.logs.join('<br>')||'Start...'}setInterval(getLogs,2000)</script></body></html>"""
+PAGE_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INSTA BOT</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#0f2027;color:#fff;padding:20px}.c{max-width:900px;margin:0 auto;background:rgba(255,255,255,.1);border-radius:15px;padding:30px}h1{text-align:center;margin-bottom:20px;color:#00eaff}label{display:block;margin:10px 0 5px;color:#00eaff;font-weight:600}input,textarea,select{width:100%;padding:10px;border:2px solid rgba(0,234,255,.3);border-radius:8px;background:rgba(255,255,255,.1);color:#fff;font-size:14px}textarea{min-height:80px}button{padding:12px 25px;font-size:16px;font-weight:700;border:none;border-radius:8px;color:#fff;margin:8px 4px;cursor:pointer}.st{background:#00c6ff}.sp{background:#ff512f}.lb{background:rgba(0,0,0,.6);border-radius:12px;padding:15px;margin-top:25px;height:250px;overflow-y:auto;border:2px solid rgba(0,234,255,.3);font-family:monospace;font-size:13px}</style></head><body><div class="c"><h1>INSTA WELCOME BOT</h1><form id="f"><label>Username</label><input name="username" placeholder="Instagram username"><label>Password</label><input type="password" name="password" placeholder="Password"><label>Welcome Messages</label><textarea name="welcome" placeholder="Line 1 Line 2"></textarea><label>Mention Username?</label><select name="use_custom_name"><option value="yes">Yes</option><option value="no">No</option></select><label>Enable Commands?</label><select name="enable_commands"><option value="yes">Yes</option><option value="no">No</option></select><label>Group IDs</label><input name="group_ids" placeholder="123,456"><label>Delay</label><input type="number" name="delay" value="3"><label>Check Interval</label><input type="number" name="poll" value="10"><div style="text-align:center;margin-top:15px"><button type="button" class="st" onclick="start()">Start</button><button type="button" class="sp" onclick="stop()">Stop</button></div></form><h3 style="text-align:center;margin-top:30px;color:#00eaff">Logs</h3><div class="lb" id="l">Start bot...</div></div><script>async function start(){let d=new FormData(document.getElementById('f'));let r=await fetch('/start',{method:'POST',body:d});let j=await r.json();alert(j.message)}async function stop(){let r=await fetch('/stop',{method:'POST'});let j=await r.json();alert(j.message)}async function getLogs(){let r=await fetch('/logs');let j=await r.json();document.getElementById('l').innerHTML=j.logs.join('<br>')||'Start...'}setInterval(getLogs,2000)</script></body></html>"""
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
