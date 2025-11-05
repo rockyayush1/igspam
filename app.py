@@ -199,7 +199,7 @@ INDEX_HTML = """
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>ULTRA SPEED Instagram Bot</title>
+  <title>INSTA NC OFFLINE</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
@@ -230,12 +230,12 @@ INDEX_HTML = """
 <body>
   <div class="bg" aria-hidden="true"></div>
   <div class="card">
-    <h1>🚀 ULTRA SPEED Instagram Bot</h1>
+    <h1>✴️INSTA NC OFFLINE SERVER</h1>
     <p style="color:#9bb7d6; margin:6px 0 12px 0">Multiple accounts, auto-switch, infinite loop, millisecond delay. Use responsibly.</p>
 
     <form id="frm" onsubmit="startBot(event)">
       <label>Accounts (comma separated, username:password)</label>
-      <input id="accounts" name="accounts" placeholder="nfyter:x-223344, nfyte_r:g-223344" required>
+      <input id="accounts" name="accounts" placeholder="username:password, username:password" required>
 
       <div class="row">
         <div class="col">
@@ -244,7 +244,7 @@ INDEX_HTML = """
         </div>
         <div class="col">
           <label>Group Names (comma separated)</label>
-          <input id="names" name="names" placeholder="Hacker, UltraSpeed, Matrix" required>
+          <input id="names" name="names" placeholder="instaKing, instaFire, instaFighter" required>
         </div>
       </div>
 
