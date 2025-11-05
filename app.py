@@ -12,10 +12,7 @@ import threading
 import requests
 from collections import deque
 from flask import Flask, render_template_string, request, jsonify, redirect, url_for
-from rich.console import Console
-from rich.text import Text
 
-console = Console()
 app = Flask(__name__)
 
 # Shared state
@@ -25,13 +22,16 @@ worker_lock = threading.Lock()
 logs = deque(maxlen=2000)
 state = {"running": False, "current_account": None, "error_count": 0, "accounts": []}
 
+
 # ---------- Helpers ----------
 def add_log(s: str):
     ts = time.strftime("%H:%M:%S")
     entry = f"[{ts}] {s}"
     with worker_lock:
         logs.append(entry)
-    console.print(Text(entry))
+    # print to stdout for host logs (Render)
+    print(entry, flush=True)
+
 
 def smart_sleep_ms(ms):
     try:
@@ -42,6 +42,7 @@ def smart_sleep_ms(ms):
         time.sleep(0.001)
     else:
         time.sleep(ms / 1000.0)
+
 
 def get_random_headers():
     user_agents = [
@@ -56,6 +57,7 @@ def get_random_headers():
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "X-IG-App-ID": "936619743392459"
     }
+
 
 # ---------- Instagram actions (best-effort) ----------
 def insta_login(username, password):
@@ -75,7 +77,8 @@ def insta_login(username, password):
         # GET to gather cookies & csrftoken
         r = session.get("https://www.instagram.com/accounts/login/", timeout=10)
         csrf = r.cookies.get("csrftoken", "")
-        session.headers.update({"X-CSRFToken": csrf})
+        if csrf:
+            session.headers.update({"X-CSRFToken": csrf})
 
         payload = {"username": username, "enc_password": f"#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}"}
         res = session.post(login_url, data=payload, allow_redirects=True, timeout=10)
@@ -84,7 +87,6 @@ def insta_login(username, password):
         text = res.text or ""
         if res.status_code == 200 and ('"authenticated":true' in text or '"authenticated": true' in text):
             return session
-        # some accounts may get redirect/other response - try to accept common success markers
         if res.status_code == 200 and ("userId" in text or "status" in text):
             return session
 
@@ -93,6 +95,7 @@ def insta_login(username, password):
     except Exception as e:
         add_log(f"❌ Login error for {username}: {e}")
         return None
+
 
 def change_group_name_safe(thread_id, new_name, session):
     """
@@ -109,6 +112,7 @@ def change_group_name_safe(thread_id, new_name, session):
         return False, f"HTTP {r.status_code}"
     except Exception as e:
         return False, str(e)
+
 
 # ---------- Worker ----------
 def worker_run(accounts_list, thread_ids, names_list, delay_ms, err_threshold):
@@ -147,6 +151,9 @@ def worker_run(accounts_list, thread_ids, names_list, delay_ms, err_threshold):
 
             session = sessions_cache[account_index]
             # pick next name
+            if not names_list:
+                add_log("⚠ No names provided, stopping worker")
+                break
             name = names_list[name_index % len(names_list)].strip()
             name_index += 1
             suffix = random.choice(["🔥", "⚡", "💀", "✨", "🚀"])
@@ -184,6 +191,7 @@ def worker_run(accounts_list, thread_ids, names_list, delay_ms, err_threshold):
         state["running"] = False
         state["current_account"] = None
         add_log("🛑 Worker stopped")
+
 
 # ---------- HTML (with animated background) ----------
 INDEX_HTML = """
@@ -318,6 +326,7 @@ function stopBot(){
 def index():
     return render_template_string(INDEX_HTML)
 
+
 @app.route("/start", methods=["POST"])
 def start():
     global worker_thread, worker_stop_event, logs, state
@@ -363,17 +372,20 @@ def start():
     time.sleep(0.12)
     return redirect(url_for("index"))
 
+
 @app.route("/stop", methods=["POST"])
 def stop():
     global worker_stop_event
     worker_stop_event.set()
     return ("", 204)
 
+
 @app.route("/logs", methods=["GET"])
 def get_logs():
     with worker_lock:
         data = list(logs)
     return jsonify({"logs": data})
+
 
 @app.route("/status", methods=["GET"])
 def get_status():
@@ -382,6 +394,7 @@ def get_status():
         "current_account": state.get("current_account", None),
         "error_count": state.get("error_count", 0)
     })
+
 
 # ---------- Run ----------
 if __name__ == "__main__":
