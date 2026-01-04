@@ -75,7 +75,8 @@ def run_bot():
         log("🛑 Login failed! Check token/session")
         return
 
-    welcome_raw = BOT_CONFIG.get('welcome', 'Welcome!')
+    welcome_raw = BOT_CONFIG.get('welcome', '''Welcome!
+Glad you joined!''')
     welcome_messages = [m.strip() for m in welcome_raw.split('
 ') if m.strip()]
     group_ids = [g.strip() for g in BOT_CONFIG.get('group_ids', '').split(',') if g.strip()]
@@ -158,8 +159,8 @@ def set_token():
         SESSION_TOKEN = token
         BOT_CONFIG.update({
             'token': token,
-            'welcome': request.form.get("welcome", "Welcome brother! 🔥
-Glad you joined! 👋"),
+            'welcome': request.form.get("welcome", '''Welcome brother! 🔥
+Glad you joined our group! 👋'''),
             'group_ids': request.form.get("group_ids", ""),
             'admin_ids': request.form.get("admin_ids", ""),
             'delay': request.form.get("delay", "3"),
