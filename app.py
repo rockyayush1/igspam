@@ -65,14 +65,17 @@ def login_client():
     log("🛑 No valid login method!")
     return None
 
+MUSIC_EMOJIS = ["🎵", "🎶", "🎸", "🎹", "🎤", "🎧", "🎺", "🎷"]
+FUNNY = ["Hahaha! 😂", "LOL! 🤣", "Mast! 😆", "Pagal! 🤪", "King! 👑😂"]
+MASTI = ["Party! 🎉", "Masti! 🥳", "Dhamaal! 💃", "Full ON! 🔥", "Enjoy! 🎊"]
+
 def run_bot():
     cl = login_client()
     if not cl:
         log("🛑 Login failed! Check token/session")
         return
 
-    welcome_raw = BOT_CONFIG.get('welcome', '''Welcome!
-Glad you joined!''')
+    welcome_raw = BOT_CONFIG.get('welcome', 'Welcome!')
     welcome_messages = [m.strip() for m in welcome_raw.split('
 ') if m.strip()]
     group_ids = [g.strip() for g in BOT_CONFIG.get('group_ids', '').split(',') if g.strip()]
@@ -82,16 +85,19 @@ Glad you joined!''')
     log(f"Groups: {len(group_ids)} | Admins: {len(admin_ids)}")
     
     known_members = {}
+    last_messages = {}
     
     # Initialize groups
     for gid in group_ids:
         try:
             group = cl.direct_thread(gid)
             known_members[gid] = {user.pk for user in group.users}
+            last_messages[gid] = group.messages[0].id if group.messages else None
             log(f"📊 Group {gid[:10]}... ready ({len(known_members[gid])} members)")
         except Exception as e:
             log(f"⚠️ Group {gid[:10]}... error: {str(e)[:30]}")
             known_members[gid] = set()
+            last_messages[gid] = None
 
     global STATS
     if STATS["last_reset"] != datetime.now().date():
@@ -152,8 +158,8 @@ def set_token():
         SESSION_TOKEN = token
         BOT_CONFIG.update({
             'token': token,
-            'welcome': request.form.get("welcome", '''Welcome brother! 🔥
-Glad you joined our group! 👋'''),
+            'welcome': request.form.get("welcome", "Welcome brother! 🔥
+Glad you joined! 👋"),
             'group_ids': request.form.get("group_ids", ""),
             'admin_ids': request.form.get("admin_ids", ""),
             'delay': request.form.get("delay", "3"),
