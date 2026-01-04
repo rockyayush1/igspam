@@ -65,10 +65,6 @@ def login_client():
     log("🛑 No valid login method!")
     return None
 
-MUSIC_EMOJIS = ["🎵", "🎶", "🎸", "🎹", "🎤", "🎧", "🎺", "🎷"]
-FUNNY = ["Hahaha! 😂", "LOL! 🤣", "Mast! 😆", "Pagal! 🤪", "King! 👑😂"]
-MASTI = ["Party! 🎉", "Masti! 🥳", "Dhamaal! 💃", "Full ON! 🔥", "Enjoy! 🎊"]
-
 def run_bot():
     cl = login_client()
     if not cl:
@@ -86,19 +82,16 @@ Glad you joined!''')
     log(f"Groups: {len(group_ids)} | Admins: {len(admin_ids)}")
     
     known_members = {}
-    last_messages = {}
     
     # Initialize groups
     for gid in group_ids:
         try:
             group = cl.direct_thread(gid)
             known_members[gid] = {user.pk for user in group.users}
-            last_messages[gid] = group.messages[0].id if group.messages else None
             log(f"📊 Group {gid[:10]}... ready ({len(known_members[gid])} members)")
         except Exception as e:
             log(f"⚠️ Group {gid[:10]}... error: {str(e)[:30]}")
             known_members[gid] = set()
-            last_messages[gid] = None
 
     global STATS
     if STATS["last_reset"] != datetime.now().date():
