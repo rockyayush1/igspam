@@ -64,44 +64,44 @@ def process_commands(cl, group, gid, message, sender_username):
     text = message.text.lower().strip() if message.text else ""
     
     if text in ["/help", ".help", "!help"]:
-        cl.direct_send("/help-Commands /stats-Stats /count-Members /ping-Alive /time-Time /music-Music /funny-Funny /masti-Party /rules-Rules", thread_ids=[gid])
+        cl.direct_send("/help-Commands/stats-Members/ping-Alive/time-Music/funny-Party/rules", thread_ids=[gid])
         log("Help sent to {}".format(sender_username))
         
     elif text in ["/stats", ".stats"]:
-        cl.direct_send("STATS: Total:{} Today:{}".format(STATS['total_welcomed'], STATS['today_welcomed']), thread_ids=[gid])
+        cl.direct_send("STATS:Total:{} Today:{}".format(STATS['total_welcomed'], STATS['today_welcomed']), thread_ids=[gid])
         log("Stats sent to {}".format(sender_username))
         
     elif text in ["/count", ".count"]:
-        cl.direct_send("MEMBERS: {}".format(len(group.users)), thread_ids=[gid])
+        cl.direct_send("MEMBERS:{}".format(len(group.users)), thread_ids=[gid])
         log("Count sent to {}".format(sender_username))
         
     elif text in ["/ping", ".ping"]:
-        cl.direct_send("PONG! Bot alive", thread_ids=[gid])
+        cl.direct_send("PONG!Bot alive", thread_ids=[gid])
         log("Ping from {}".format(sender_username))
         
     elif text in ["/time", ".time"]:
         now = datetime.now().strftime("%I:%M %p")
-        cl.direct_send("TIME: {}".format(now), thread_ids=[gid])
+        cl.direct_send("TIME:{}".format(now), thread_ids=[gid])
         log("Time sent to {}".format(sender_username))
         
     elif text in ["/music", ".music"]:
-        music_emojis = ["🎵","🎶","🎸","🎹","🎤","🎧"]
-        music_msg = "♪♫♪♫ " + " ".join(random.choices(music_emojis, k=4))
+        music_emojis = ["🎵","🎶","🎸","🎹"]
+        music_msg = "".join(random.choices(music_emojis, k=4))
         cl.direct_send(music_msg, thread_ids=[gid])
         log("Music sent to {}".format(sender_username))
         
     elif text in ["/funny", ".funny"]:
-        funny_msgs = ["Hahaha!😂","LOL!🤣","Mast!😆","Pagal!🤪","King!👑"]
+        funny_msgs = ["Hahaha!😂","LOL!🤣","Mast!😆"]
         cl.direct_send(random.choice(funny_msgs), thread_ids=[gid])
         log("Funny sent to {}".format(sender_username))
         
     elif text in ["/masti", ".masti"]:
-        masti_msgs = ["Party!🎉","Masti!🥳","Dhamaal!💃","Fire!🔥","Enjoy!🎊"]
+        masti_msgs = ["Party!🎉","Masti!🥳","Fire!🔥"]
         cl.direct_send(random.choice(masti_msgs), thread_ids=[gid])
         log("Masti sent to {}".format(sender_username))
         
     elif text in ["/rules", ".rules"]:
-        cl.direct_send("RULES:1.No spam 2.Respect 3.Stay active 4.Have fun!", thread_ids=[gid])
+        cl.direct_send("RULES:1.No spam 2.Respect 3.Active 4.Fun!", thread_ids=[gid])
         log("Rules sent to {}".format(sender_username))
 
 def run_bot():
@@ -112,11 +112,20 @@ def run_bot():
         return
 
     welcome_raw = BOT_CONFIG.get('welcome', 'Welcome!')
-    welcome_messages = [m.strip() for m in welcome_raw.split("
-") if m.strip()]
-    group_ids = [g.strip() for g in BOT_CONFIG.get('group_ids', '').split(',') if g.strip()]
+    welcome_list = welcome_raw.split("
+")
+    welcome_messages = []
+    for m in welcome_list:
+        stripped = m.strip()
+        if stripped:
+            welcome_messages.append(stripped)
+            
+    group_ids = []
+    group_raw = BOT_CONFIG.get('group_ids', '')
+    if ',' in group_raw:
+        group_ids = [g.strip() for g in group_raw.split(',') if g.strip()]
     
-    log("Bot started! Commands: ON")
+    log("Bot started! Commands:ON")
     known_members = {}
     last_message_ids = {}
     
@@ -166,7 +175,7 @@ def run_bot():
                     if new_members:
                         for user in group.users:
                             if user.pk in new_members and user.username:
-                                log("NEW: @{}".format(user.username))
+                                log("NEW:@{}".format(user.username))
                                 for msg in welcome_messages:
                                     if STOP_EVENT.is_set():
                                         break
@@ -192,7 +201,7 @@ def run_bot():
 @app.route("/")
 def index():
     return '''<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BOT v7</title>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BOT v8</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#000;color:#fff;padding:20px;min-height:100vh;}
 .card{max-width:500px;margin:0 auto;background:rgba(10,10,30,0.95);border-radius:20px;padding:30px;border:2px solid #00ff88;box-shadow:0 0 40px rgba(0,255,136,0.4);}
 h1{text-align:center;color:#00ff88;font-size:2.5em;margin-bottom:25px;text-shadow:0 0 20px #00ff88;}
@@ -213,7 +222,7 @@ textarea{min-height:100px;}.btn{width:100%;padding:18px;font-size:18px;font-weig
 .success{background:rgba(0,255,136,0.2);border:2px solid #00ff88;color:#00ff88;}
 .error{background:rgba(255,71,87,0.2);border:2px solid #ff4757;color:#ff4757;}</style></head><body>
 <div class="card">
-<h1>🤖 BOT v7</h1>
+<h1>🤖 BOT v8</h1>
 <div id="status" class="status"></div>
 
 <div class="input-group"><label>Token</label><input id="token" placeholder="56748960230%3AF8ELTyGZTkSadW...">
@@ -236,19 +245,14 @@ Stay active!</textarea></div>
 <div class="stat-card"><strong>Today</strong><div id="today">0</div></div>
 </div>
 
-<div class="commands"><strong>COMMANDS:</strong><br>/help /stats /count /ping /time /music /funny /masti /rules</div>
+<div class="commands"><strong>COMMANDS:</strong><br>/help/stats/count/ping/time/music/funny/masti/rules</div>
 
 <div class="logs" id="logs">Bot ready...</div>
 </div>
 
 <script>
-function showStatus(msg,type="success"){
-const s=document.getElementById("status");s.textContent=msg;s.className="status "+type;s.style.display="block";setTimeout(()=>s.style.display="none",4000);
-}
-async function setToken(){
-const form=new FormData();form.append("token",document.getElementById("token").value);form.append("welcome",document.getElementById("welcome").value);form.append("group_ids",document.getElementById("group_ids").value);form.append("delay",document.getElementById("delay").value);form.append("poll",document.getElementById("poll").value);
-const res=await fetch("/set_token",{method:"POST",body:form});const data=await res.json();if(data.status==="success"){showStatus("Token set!");document.getElementById("startBtn").style.display="block";}else showStatus("Error!","error");
-}
+function showStatus(msg,type="success"){const s=document.getElementById("status");s.textContent=msg;s.className="status "+type;s.style.display="block";setTimeout(()=>s.style.display="none",4000);}
+async function setToken(){const form=new FormData();form.append("token",document.getElementById("token").value);form.append("welcome",document.getElementById("welcome").value);form.append("group_ids",document.getElementById("group_ids").value);form.append("delay",document.getElementById("delay").value);form.append("poll",document.getElementById("poll").value);const res=await fetch("/set_token",{method:"POST",body:form});const data=await res.json();if(data.status==="success"){showStatus("Token set!");document.getElementById("startBtn").style.display="block";}else showStatus("Error!","error");}
 async function startBot(){const res=await fetch("/start",{method:"POST"});const data=await res.json();if(data.status==="started"){showStatus("Bot started!");document.getElementById("startBtn").style.display="none";document.getElementById("stopBtn").style.display="block";document.getElementById("stats").style.display="grid";}}
 async function stopBot(){await fetch("/stop",{method:"POST"});showStatus("Bot stopped!");document.getElementById("stopBtn").style.display="none";document.getElementById("startBtn").style.display="block";}
 setInterval(async()=>{try{const res=await fetch("/logs");const data=await res.json();document.getElementById("logs").innerHTML=data.logs.slice(-12).map(l=>"<div>"+l+"</div>").join("");document.getElementById("logs").scrollTop=9999;document.getElementById("total").textContent=data.stats.total_welcomed||0;document.getElementById("today").textContent=data.stats.today_welcomed||0;}catch(e){}},2000);
@@ -298,5 +302,5 @@ def get_logs():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print("Instagram Bot v7 - ALL FIXED!")
+    print("Instagram Bot v8 - 100% FIXED!")
     app.run(host="0.0.0.0", port=port, debug=False)
