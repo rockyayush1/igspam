@@ -112,33 +112,50 @@ def run_bot():
         return
 
     welcome_raw = BOT_CONFIG.get('welcome', 'Welcome!')
-    welcome_list = welcome_raw.split("
+    welcome_messages = welcome_raw.replace("
+", "
+").split("
 ")
-    welcome_messages = []
-    for m in welcome_list:
-        stripped = m.strip()
-        if stripped:
-            welcome_messages.append(stripped)
-            
+    final_welcome = []
+    i = 0
+    while i < len(welcome_messages):
+        msg = welcome_messages[i].strip()
+        if len(msg) > 0:
+            final_welcome.append(msg)
+        i = i + 1
+    
     group_ids = []
     group_raw = BOT_CONFIG.get('group_ids', '')
-    if ',' in group_raw:
-        group_ids = [g.strip() for g in group_raw.split(',') if g.strip()]
+    if len(group_raw) > 0:
+        parts = group_raw.split(",")
+        i = 0
+        while i < len(parts):
+            gid = parts[i].strip()
+            if len(gid) > 0:
+                group_ids.append(gid)
+            i = i + 1
     
     log("Bot started! Commands:ON")
     known_members = {}
     last_message_ids = {}
     
-    for gid in group_ids:
+    i = 0
+    while i < len(group_ids):
+        gid = group_ids[i]
         try:
             group = cl.direct_thread(gid)
-            known_members[gid] = {user.pk for user in group.users}
-            last_message_ids[gid] = group.messages[0].id if group.messages else None
+            known_members[gid] = set()
+            j = 0
+            while j < len(group.users):
+                known_members[gid].add(group.users[j].pk)
+                j = j + 1
+            if len(group.messages) > 0:
+                last_message_ids[gid] = group.messages[0].id
             log("Group {} ready".format(gid[:15]))
         except Exception as e:
             log("Group {} failed: {}".format(gid[:15], str(e)[:30]))
             known_members[gid] = set()
-            last_message_ids[gid] = None
+        i = i + 1
 
     if STATS["last_reset"] != datetime.now().date():
         STATS["today_welcomed"] = 0
@@ -146,50 +163,77 @@ def run_bot():
 
     while not STOP_EVENT.is_set():
         try:
-            for gid in group_ids:
+            i = 0
+            while i < len(group_ids):
+                gid = group_ids[i]
                 if STOP_EVENT.is_set():
                     break
                 try:
                     group = cl.direct_thread(gid)
-                    current_members = {user.pk for user in group.users}
+                    current_members = set()
+                    j = 0
+                    while j < len(group.users):
+                        current_members.add(group.users[j].pk)
+                        j = j + 1
                     
-                    if BOT_CONFIG.get("commands_enabled", True) and group.messages:
+                    if BOT_CONFIG.get("commands_enabled", True) and len(group.messages) > 0:
                         last_id = last_message_ids.get(gid)
                         new_messages = []
                         
-                        for msg in group.messages:
+                        k = 0
+                        while k < len(group.messages):
+                            msg = group.messages[k]
                             if last_id and msg.id == last_id:
                                 break
                             new_messages.append(msg)
+                            k = k + 1
                         
-                        for message in reversed(new_messages):
+                        m = len(new_messages) - 1
+                        while m >= 0:
+                            message = new_messages[m]
                             if message.user_id == cl.user_id:
+                                m = m - 1
                                 continue
-                            sender = next((u for u in group.users if u.pk == message.user_id), None)
+                            sender = None
+                            j = 0
+                            while j < len(group.users):
+                                if group.users[j].pk == message.user_id:
+                                    sender = group.users[j]
+                                    break
+                                j = j + 1
                             if sender and sender.username:
                                 process_commands(cl, group, gid, message, sender.username)
+                            m = m - 1
                         
-                        last_message_ids[gid] = group.messages[0].id if group.messages else None
+                        if len(group.messages) > 0:
+                            last_message_ids[gid] = group.messages[0].id
                     
-                    new_members = current_members - known_members[gid]
-                    if new_members:
-                        for user in group.users:
+                    new_members = current_members - known_members.get(gid, set())
+                    if len(new_members) > 0:
+                        j = 0
+                        while j < len(group.users):
+                            user = group.users[j]
                             if user.pk in new_members and user.username:
                                 log("NEW:@{}".format(user.username))
-                                for msg in welcome_messages:
+                                n = 0
+                                while n < len(final_welcome):
                                     if STOP_EVENT.is_set():
                                         break
+                                    msg = final_welcome[n]
                                     final_msg = "@{} {}".format(user.username, msg) if BOT_CONFIG.get('mention', 'yes') == 'yes' else msg
                                     cl.direct_send(final_msg, thread_ids=[gid])
-                                    STATS["total_welcomed"] += 1
-                                    STATS["today_welcomed"] += 1
+                                    STATS["total_welcomed"] = STATS["total_welcomed"] + 1
+                                    STATS["today_welcomed"] = STATS["today_welcomed"] + 1
                                     log("Welcomed @{}".format(user.username))
                                     time.sleep(int(BOT_CONFIG.get('delay', 3)))
+                                    n = n + 1
                                 known_members[gid].add(user.pk)
+                            j = j + 1
                     
                     known_members[gid] = current_members
                 except Exception as e:
                     log("Group error: {}".format(str(e)[:50]))
+                i = i + 1
             
             time.sleep(int(BOT_CONFIG.get('poll', 10)))
         except Exception as e:
@@ -201,7 +245,7 @@ def run_bot():
 @app.route("/")
 def index():
     return '''<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BOT v8</title>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BOT v9</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#000;color:#fff;padding:20px;min-height:100vh;}
 .card{max-width:500px;margin:0 auto;background:rgba(10,10,30,0.95);border-radius:20px;padding:30px;border:2px solid #00ff88;box-shadow:0 0 40px rgba(0,255,136,0.4);}
 h1{text-align:center;color:#00ff88;font-size:2.5em;margin-bottom:25px;text-shadow:0 0 20px #00ff88;}
@@ -217,39 +261,22 @@ textarea{min-height:100px;}.btn{width:100%;padding:18px;font-size:18px;font-weig
 .logs::-webkit-scrollbar{width:6px;}.logs::-webkit-scrollbar-thumb{background:#00ff88;border-radius:3px;}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:15px;margin:20px 0;}
 .stat-card{background:rgba(0,255,136,0.15);border:2px solid #00ff88;border-radius:10px;padding:15px;text-align:center;}
-.commands{background:rgba(255,71,87,0.1);border:2px solid #ff4757;border-radius:10px;padding:15px;margin-top:15px;}
 .status{padding:15px;border-radius:10px;margin:20px 0;text-align:center;font-weight:bold;display:none;}
 .success{background:rgba(0,255,136,0.2);border:2px solid #00ff88;color:#00ff88;}
 .error{background:rgba(255,71,87,0.2);border:2px solid #ff4757;color:#ff4757;}</style></head><body>
 <div class="card">
-<h1>🤖 BOT v8</h1>
+<h1>🤖 BOT v9</h1>
 <div id="status" class="status"></div>
-
-<div class="input-group"><label>Token</label><input id="token" placeholder="56748960230%3AF8ELTyGZTkSadW...">
-<button class="btn btn-token" onclick="setToken()">SET TOKEN</button></div>
-
-<div class="input-group"><label>Welcome</label><textarea id="welcome">Welcome brother!
-Glad you joined!
-Stay active!</textarea></div>
-
+<div class="input-group"><label>Token</label><input id="token" placeholder="56748960230%3AF8ELTyGZTkSadW..."><button class="btn btn-token" onclick="setToken()">SET TOKEN</button></div>
+<div class="input-group"><label>Welcome</label><textarea id="welcome">Welcome brother!&#10;Glad you joined!&#10;Stay active!</textarea></div>
 <div class="input-group"><label>Groups</label><input id="group_ids" placeholder="24632887389663044,12345678901234567"></div>
-
 <div class="input-group"><label>Delay</label><input type="number" id="delay" value="3" min="1" max="10"></div>
 <div class="input-group"><label>Poll</label><input type="number" id="poll" value="10" min="5" max="30"></div>
-
 <button class="btn btn-start" onclick="startBot()" id="startBtn" style="display:none;">START BOT</button>
 <button class="btn btn-stop" onclick="stopBot()" id="stopBtn" style="display:none;">STOP BOT</button>
-
-<div class="stats" id="stats" style="display:none;">
-<div class="stat-card"><strong>Total</strong><div id="total">0</div></div>
-<div class="stat-card"><strong>Today</strong><div id="today">0</div></div>
-</div>
-
-<div class="commands"><strong>COMMANDS:</strong><br>/help/stats/count/ping/time/music/funny/masti/rules</div>
-
+<div class="stats" id="stats" style="display:none;"><div class="stat-card"><strong>Total</strong><div id="total">0</div></div><div class="stat-card"><strong>Today</strong><div id="today">0</div></div></div>
 <div class="logs" id="logs">Bot ready...</div>
 </div>
-
 <script>
 function showStatus(msg,type="success"){const s=document.getElementById("status");s.textContent=msg;s.className="status "+type;s.style.display="block";setTimeout(()=>s.style.display="none",4000);}
 async function setToken(){const form=new FormData();form.append("token",document.getElementById("token").value);form.append("welcome",document.getElementById("welcome").value);form.append("group_ids",document.getElementById("group_ids").value);form.append("delay",document.getElementById("delay").value);form.append("poll",document.getElementById("poll").value);const res=await fetch("/set_token",{method:"POST",body:form});const data=await res.json();if(data.status==="success"){showStatus("Token set!");document.getElementById("startBtn").style.display="block";}else showStatus("Error!","error");}
@@ -302,5 +329,5 @@ def get_logs():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print("Instagram Bot v8 - 100% FIXED!")
+    print("Instagram Bot v9 - ULTRA SAFE!")
     app.run(host="0.0.0.0", port=port, debug=False)
