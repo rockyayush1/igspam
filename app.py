@@ -17,7 +17,6 @@ GROUP_CONFIG_FILE = "group_config.json"
 STATS = {"total_welcomed": 0, "today_welcomed": 0, "last_reset": datetime.now().date()}
 BOT_CONFIG = {"auto_replies": {}, "auto_reply_active": False}
 
-# Global config
 GROUP_CHAT_ID = None
 ADMIN_USER_ID = None
 
@@ -27,12 +26,10 @@ def log(msg):
     LOGS.append(lm)
     print(lm)
 
-# Emoji lists
 MUSIC_EMOJIS = ["🎵", "🎶", "🎤", "🎸", "🥁", "🎹", "🎺", "🎷", "🥰", "❤️"]
 LOVE_EMOJIS = ["❤️", "💕", "💖", "💗", "💓", "💞", "💘", "💝"]
 STAR_EMOJIS = ["⭐", "✨", "🌟", "💫", "⭐️"]
 
-# Instagram Client
 cl = Client()
 SESSION_LOADED = False
 
@@ -44,33 +41,22 @@ def load_session():
             log("✅ Session file loaded")
             SESSION_LOADED = True
             return True
-            
         elif os.path.exists(TOKEN_FILE):
             with open(TOKEN_FILE, 'r') as f:
                 session_id = f.read().strip()
             cl.login_by_sessionid(session_id)
             cl.dump_settings(SESSION_FILE)
-            log("✅ Token file login successful")
+            log("✅ Token login successful")
             SESSION_LOADED = True
             return True
-            
         else:
-            log("⚠️ No session or token - use dashboard")
+            log("⚠️ No session/token - use dashboard")
             SESSION_LOADED = False
             return False
-            
     except Exception as e:
         log(f"❌ Login failed: {str(e)}")
         SESSION_LOADED = False
         return False
-
-def save_session():
-    try:
-        if SESSION_LOADED:
-            cl.dump_settings(SESSION_FILE)
-            log("💾 Session saved")
-    except:
-        pass
 
 def load_group_config():
     global GROUP_CHAT_ID, ADMIN_USER_ID
@@ -80,16 +66,13 @@ def load_group_config():
                 config = json.load(f)
                 GROUP_CHAT_ID = config.get('group_chat_id')
                 ADMIN_USER_ID = config.get('admin_user_id')
-                log(f"✅ Group config loaded: {GROUP_CHAT_ID}")
+                log(f"✅ Group loaded: {GROUP_CHAT_ID}")
     except:
         pass
 
 def save_group_config():
     try:
-        config = {
-            'group_chat_id': GROUP_CHAT_ID,
-            'admin_user_id': ADMIN_USER_ID
-        }
+        config = {'group_chat_id': GROUP_CHAT_ID, 'admin_user_id': ADMIN_USER_ID}
         with open(GROUP_CONFIG_FILE, 'w') as f:
             json.dump(config, f)
     except:
@@ -121,22 +104,20 @@ def load_stats():
 
 def bot_loop():
     global BOT_THREAD, STOP_EVENT
-    log("🤖 Instagram Group Bot started")
+    log("🤖 Instagram Group Bot Active")
     
     while not STOP_EVENT.is_set():
         try:
             if not SESSION_LOADED or not GROUP_CHAT_ID or not ADMIN_USER_ID:
-                log("⏳ Waiting for full config...")
                 time.sleep(5)
                 continue
                 
             reset_daily_stats()
             if STATS["today_welcomed"] >= 50:
-                log("⏳ Daily limit reached")
+                log("⏳ Daily limit (50)")
                 time.sleep(300)
                 continue
             
-            # Check specific group
             threads = cl.direct_threads(amount=5)
             for thread in threads:
                 if str(thread.id) == GROUP_CHAT_ID:
@@ -144,43 +125,29 @@ def bot_loop():
                     if messages:
                         last_msg = messages[0]
                         
-                        # Only admin messages
                         if str(last_msg.user_id) == ADMIN_USER_ID:
                             msg_text = last_msg.text.lower() if last_msg.text else ""
                             
-                            # Commands
                             if "/start" in msg_text:
-                                cl.direct_send("🤖 Bot active!👑 Admin Commands:
-/start - Activate
-/stats - Statistics
-/reply hello Namaste - Add auto reply
-/stop - Pause", thread_id=GROUP_CHAT_ID)
-                                log("✅ /start command executed")
+                                cl.direct_send("🤖 Bot Active! 👑 /stats /reply hi Namaste /stop", thread_id=GROUP_CHAT_ID)
+                                log("✅ /start executed")
                                 
                             elif "/stats" in msg_text:
-                                stats_msg = f"📊 Stats:
-Total: {STATS['total_welcomed']}
-Today: {STATS['today_welcomed']}/50"
+                                stats_msg = f"📊 Total: {STATS['total_welcomed']} | Today: {STATS['today_welcomed']}/50"
                                 cl.direct_send(stats_msg, thread_id=GROUP_CHAT_ID)
                                 
                             elif "/stop" in msg_text:
                                 STOP_EVENT.set()
-                                cl.direct_send("⏹️ Bot paused", thread_id=GROUP_CHAT_ID)
-                                log("✅ /stop command executed")
+                                cl.direct_send("⏹️ Bot Paused", thread_id=GROUP_CHAT_ID)
                                 
                             elif msg_text.startswith("/reply "):
-                                try:
-                                    parts = msg_text.split(" ", 2)
-                                    if len(parts) == 3:
-                                        trigger, reply_msg = parts[1], parts[2]
-                                        BOT_CONFIG["auto_replies"][trigger.lower()] = reply_msg
-                                        BOT_CONFIG["auto_reply_active"] = True
-                                        cl.direct_send(f"✅ Added: '{trigger}' → '{reply_msg[:30]}...'", thread_id=GROUP_CHAT_ID)
-                                        log(f"➕ Reply added: {trigger}")
-                                except:
-                                    cl.direct_send("❌ Format: /reply hello Namaste bhai", thread_id=GROUP_CHAT_ID)
+                                parts = msg_text.split(" ", 2)
+                                if len(parts) == 3:
+                                    trigger, reply_msg = parts[1], parts[2]
+                                    BOT_CONFIG["auto_replies"][trigger.lower()] = reply_msg
+                                    BOT_CONFIG["auto_reply_active"] = True
+                                    cl.direct_send(f"✅ '{trigger}' → '{reply_msg[:30]}...'", thread_id=GROUP_CHAT_ID)
                             
-                            # Auto replies for group members
                             elif BOT_CONFIG["auto_reply_active"]:
                                 for trigger, reply in BOT_CONFIG["auto_replies"].items():
                                     if trigger in msg_text:
@@ -189,13 +156,12 @@ Today: {STATS['today_welcomed']}/50"
                                         STATS["total_welcomed"] += 1
                                         STATS["today_welcomed"] += 1
                                         save_stats()
-                                        log(f"📨 Auto reply sent")
+                                        log("📨 Auto reply")
                                         break
             
             time.sleep(20)
-            
         except Exception as e:
-            log(f"⚠️ Bot error: {str(e)}")
+            log(f"⚠️ Error: {str(e)}")
             time.sleep(10)
 
 def start_bot():
@@ -204,9 +170,9 @@ def start_bot():
         STOP_EVENT.clear()
         BOT_THREAD = threading.Thread(target=bot_loop, daemon=True)
         BOT_THREAD.start()
-        log("▶️ Bot started")
+        log("▶️ Bot Started")
     else:
-        log("⚠️ Bot already running")
+        log("⚠️ Already running")
 
 def stop_bot():
     global BOT_THREAD
@@ -214,129 +180,261 @@ def stop_bot():
     if BOT_THREAD:
         BOT_THREAD.join(timeout=2)
     BOT_THREAD = None
-    log("⏹️ Bot stopped")
+    log("⏹️ Bot Stopped")
 
-# COMPLETE DASHBOARD HTML
-DASHBOARD_HTML = '''
+# PREMIUM WEBSITE-LIKE DASHBOARD DESIGN
+DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Instagram Group Bot Dashboard</title>
+    <title>🤖 Instagram Group Bot Dashboard</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height:100vh; }
-        .container { max-width:1200px; margin:0 auto; padding:20px; }
-        .card { background: rgba(255,255,255,0.95); border-radius:20px; padding:25px; margin:15px 0; box-shadow: 0 20px 40px rgba(0,0,0,0.1); backdrop-filter: blur(10px); }
-        .stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px,1fr)); gap:20px; margin:20px 0; }
-        .stat-card { background: linear-gradient(45deg, #ff6b6b, #feca57); color:white; padding:20px; border-radius:15px; text-align:center; }
-        .btn { padding:12px 24px; border:none; border-radius:50px; cursor:pointer; font-weight:bold; font-size:14px; transition:all 0.3s; margin:5px; }
-        .btn-primary { background: linear-gradient(45deg, #667eea, #764ba2); color:white; }
-        .btn-success { background: linear-gradient(45deg, #11998e, #38ef7d); color:white; }
-        .btn-danger { background: linear-gradient(45deg, #ff6b6b, #ee5a52); color:white; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-        .logs { max-height:400px; overflow-y:auto; background:#f8f9fa; border-radius:10px; padding:15px; font-family:monospace; font-size:12px; line-height:1.5; }
-        .form-group { margin:15px 0; }
-        .form-group label { display:block; margin-bottom:8px; font-weight:600; color:#333; }
-        .form-group input, .form-group textarea { width:100%; padding:12px; border:2px solid #e9ecef; border-radius:10px; font-size:14px; transition:border-color 0.3s; }
-        .form-group input:focus, .form-group textarea:focus { outline:none; border-color:#667eea; }
-        .status { padding:10px; border-radius:10px; margin:10px 0; font-weight:bold; }
-        .status.online { background:#d4edda; color:#155724; }
-        .status.offline { background:#f8d7da; color:#721c24; }
-        h1 { text-align:center; color:white; margin-bottom:10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-        .emoji { font-size:24px; margin-right:10px; }
-        .token-input, .id-input { font-size:12px; font-family:monospace; letter-spacing:1px; }
-        .commands { background:#e8f5e8; padding:15px; border-radius:10px; margin-top:10px; font-family:monospace; font-size:12px; }
+        body { 
+            font-family: 'Poppins', sans-serif; 
+            background: linear-gradient(135deg, #0f0f23 0%, #2a2a4a 50%, #1a1a3a 100%); 
+            min-height:100vh; 
+            color: #e0e0e0;
+        }
+        .container { max-width:1400px; margin:0 auto; padding:20px; }
+        .header { 
+            text-align:center; 
+            background: linear-gradient(45deg, #667eea, #764ba2); 
+            padding:30px; 
+            border-radius:25px; 
+            margin-bottom:30px; 
+            box-shadow: 0 25px 50px rgba(102, 126, 234, 0.3);
+        }
+        .header h1 { 
+            font-size:2.5em; 
+            font-weight:700; 
+            background: linear-gradient(45deg, #fff, #f0f0ff); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+            margin-bottom:10px;
+        }
+        .header p { font-size:1.2em; opacity:0.9; }
+        .glass-card { 
+            background: rgba(255,255,255,0.1); 
+            backdrop-filter: blur(20px); 
+            border-radius:25px; 
+            padding:30px; 
+            margin:20px 0; 
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+            transition: all 0.4s ease;
+        }
+        .glass-card:hover { transform: translateY(-10px); box-shadow: 0 35px 70px rgba(0,0,0,0.3); }
+        .stats-grid { 
+            display:grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); 
+            gap:25px; 
+            margin:25px 0; 
+        }
+        .stat-card { 
+            background: linear-gradient(145deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05)); 
+            padding:30px; 
+            border-radius:20px; 
+            text-align:center; 
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width:200%; height:200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg); transition: all 0.5s;
+        }
+        .stat-card:hover::before { animation: shine 0.6s ease-in-out; }
+        @keyframes shine { 0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); } 100% { transform: translateX(100%) translateY(100%) rotate(45deg); } }
+        .stat-number { font-size:3.5em; font-weight:700; background: linear-gradient(45deg, #fff, #e0e0ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom:10px; }
+        .stat-label { font-size:1.1em; opacity:0.9; font-weight:500; }
+        .btn { 
+            padding:15px 35px; 
+            border:none; 
+            border-radius:50px; 
+            cursor:pointer; 
+            font-weight:600; 
+            font-size:16px; 
+            transition:all 0.3s; 
+            margin:8px; 
+            text-transform: uppercase; 
+            letter-spacing:1px;
+            position: relative; overflow: hidden;
+        }
+        .btn-primary { 
+            background: linear-gradient(45deg, #667eea, #764ba2); 
+            color:white; 
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success { 
+            background: linear-gradient(45deg, #00d4aa, #00b894); 
+            color:white; 
+            box-shadow: 0 10px 30px rgba(0, 212, 170, 0.4);
+        }
+        .btn-danger { 
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52); 
+            color:white; 
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+        }
+        .btn:hover { transform: translateY(-5px) scale(1.05); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .btn:active { transform: translateY(-2px) scale(1.02); }
+        .logs { 
+            max-height:450px; 
+            overflow-y:auto; 
+            background:rgba(0,0,0,0.3); 
+            border-radius:20px; 
+            padding:25px; 
+            font-family: 'Fira Code', monospace; 
+            font-size:13px; 
+            line-height:1.6; 
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .form-group { margin:25px 0; }
+        .form-group label { 
+            display:block; 
+            margin-bottom:12px; 
+            font-weight:600; 
+            color:#fff; 
+            font-size:1.1em;
+        }
+        .form-group input, .form-group textarea { 
+            width:100%; 
+            padding:18px; 
+            border:2px solid rgba(255,255,255,0.2); 
+            border-radius:15px; 
+            font-size:15px; 
+            background:rgba(255,255,255,0.1); 
+            color:#fff; 
+            backdrop-filter: blur(10px);
+            transition:all 0.3s;
+            font-family: 'Fira Code', monospace;
+        }
+        .form-group input::placeholder, .form-group textarea::placeholder { color: rgba(255,255,255,0.6); }
+        .form-group input:focus, .form-group textarea:focus { 
+            outline:none; 
+            border-color:#667eea; 
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            background:rgba(255,255,255,0.15);
+        }
+        .status { 
+            padding:15px; 
+            border-radius:15px; 
+            margin:15px 0; 
+            font-weight:600; 
+            text-align:center;
+            font-size:1em;
+        }
+        .status.online { 
+            background: rgba(0, 255, 127, 0.2); 
+            color:#00ff7f; 
+            border: 1px solid rgba(0, 255, 127, 0.3);
+        }
+        .status.offline { 
+            background: rgba(255, 107, 107, 0.2); 
+            color:#ff6b6b; 
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+        .commands { 
+            background:rgba(0,212,170,0.2); 
+            padding:25px; 
+            border-radius:20px; 
+            margin-top:20px; 
+            border: 1px solid rgba(0,212,170,0.3);
+            font-family: 'Fira Code', monospace;
+        }
+        .commands strong { color:#00d4aa; font-size:1.2em; display:block; margin-bottom:15px; }
+        .commands code { background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:8px; color:#00ff7f; }
+        .icon { font-size:2em; margin-right:15px; }
+        @media (max-width: 768px) {
+            .container { padding:15px; }
+            .header h1 { font-size:2em; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1><span class="emoji">🤖</span>Instagram Group Bot<span class="emoji">👥</span></h1>
+        <div class="header">
+            <h1><i class="fas fa-robot"></i> Instagram Group Bot</h1>
+            <p>Advanced Group Automation Dashboard <i class="fas fa-chart-line"></i></p>
+        </div>
         
-        <div class="card">
+        <div class="glass-card">
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div style="font-size:32px;">{{ total_welcomed }}</div>
-                    <div>Total Messages</div>
+                    <div class="stat-number">{{ total_welcomed }}</div>
+                    <div class="stat-label">Total Messages</div>
+                    <i class="fas fa-comments icon" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
-                <div class="stat-card" style="background: linear-gradient(45deg, #48dbfb, #0abde3);">
-                    <div style="font-size:32px;">{{ today_welcomed }}</div>
-                    <div>Today (50 max)</div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#00d4aa;">{{ today_welcomed }}</div>
+                    <div class="stat-label">Today (50 Max)</div>
+                    <i class="fas fa-sun icon" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
-                <div class="stat-card" style="background: linear-gradient(45deg, #ff9ff3, #f368e0);">
-                    <div style="font-size:32px;">{% if bot_status %}🟢 Live{% else %}🔴 Stopped{% endif %}</div>
-                    <div>Bot Status</div>
+                <div class="stat-card">
+                    <div class="stat-number" style="{% if bot_status %}color:#00ff7f;{% else %}color:#ff6b6b;{% endif %}">
+                        {% if bot_status %}🟢 LIVE{% else %}🔴 STOPPED{% endif %}
+                    </div>
+                    <div class="stat-label">Bot Status</div>
+                    <i class="fas fa-circle {% if bot_status %}fa-bolt{% else %}fa-power-off{% endif %} icon" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
-                <div class="stat-card" style="background: linear-gradient(45deg, #54a0ff, #2e86de);">
-                    <div style="font-size:32px;">{{ session_status }}</div>
-                    <div>Instagram</div>
+                <div class="stat-card">
+                    <div class="stat-number" style="{% if session_status == 'Connected' %}color:#00d4aa;{% else %}color:#ff6b6b;{% endif %}">{{ session_status }}</div>
+                    <div class="stat-label">Instagram</div>
+                    <i class="fab fa-instagram icon" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <h3>🎛️ Bot Controls</h3>
-            <button class="btn btn-success" onclick="toggleBot({{ 'true' if bot_status else 'false' }})">
-                {% if bot_status %}⏹️ Stop Bot{% else %}▶️ Start Bot{% endif %}
+        <div class="glass-card">
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-play-circle icon"></i>Bot Controls</h3>
+            <button class="btn btn-success" onclick="toggleBot({{ 'true' if bot_status else 'false' }})" style="font-size:18px;">
+                {% if bot_status %}<i class="fas fa-stop"></i> STOP BOT{% else %}<i class="fas fa-play"></i> START BOT{% endif %}
             </button>
             <div class="status {% if session_status == 'Connected' %}online{% else %}offline{% endif %}">
-                {{ session_status }}
+                <i class="fas fa-plug"></i> {{ session_status }}
             </div>
         </div>
 
-        <div class="card">
-            <h3>🔑 Token Setup</h3>
+        <div class="glass-card">
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-key icon"></i>Token Setup</h3>
             <div class="form-group">
-                <label>Paste Instagram Token:</label>
-                <input type="text" id="tokenInput" class="token-input" placeholder="73946433692%3A86Qq7BtIBfGquT...">
-                <button class="btn btn-primary" onclick="setToken()" style="margin-top:10px;">✅ Set Token</button>
+                <label>Paste Instagram Session Token:</label>
+                <input type="text" id="tokenInput" placeholder="73946433692%3A86Qq7BtIBfGquT...">
+                <button class="btn btn-primary" onclick="setToken()" style="margin-top:15px; font-size:16px;"><i class="fas fa-save"></i> Set Token</button>
             </div>
-            <div id="tokenStatus" class="status offline" style="font-size:12px;">No token set</div>
+            <div id="tokenStatus" class="status offline">No token configured</div>
         </div>
 
-        <div class="card">
-            <h3>👥 Group & Admin Setup</h3>
+        <div class="glass-card">
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-users icon"></i>Group & Admin Setup</h3>
             <div class="form-group">
                 <label>Group Chat ID:</label>
-                <input type="text" id="groupChatId" class="id-input" placeholder="1234567890">
-                <small style="color:#666;">Group ke messages open karke URL se ID nikalo</small>
+                <input type="text" id="groupChatId" placeholder="1234567890">
+                <small style="color:#aaa; display:block; margin-top:5px;">Copy from group messages URL</small>
             </div>
             <div class="form-group">
                 <label>Admin User ID:</label>
-                <input type="text" id="adminUserId" class="id-input" placeholder="9876543210">
-                <small style="color:#666;">Apna user ID (sirf tumhare commands chalenge)</small>
+                <input type="text" id="adminUserId" placeholder="9876543210">
+                <small style="color:#aaa; display:block; margin-top:5px;">Your user ID (admin only commands)</small>
             </div>
-            <button class="btn btn-success" onclick="setGroupAdmin()" style="margin-top:10px;">✅ Save Settings</button>
-            <div id="groupStatus" class="status offline" style="font-size:12px;">Not configured</div>
+            <button class="btn btn-success" onclick="setGroupAdmin()" style="margin-top:15px; font-size:16px;"><i class="fas fa-save"></i> Save Settings</button>
+            <div id="groupStatus" class="status offline">Not configured</div>
             <div class="commands">
-                <strong>👑 Admin Commands:</strong><br>
-                /start - Bot activate<br>
-                /stats - Statistics<br>
-                /reply hello Namaste - Auto reply add<br>
-                /stop - Pause bot
+                <strong><i class="fas fa-crown"></i> Admin Commands:</strong>
+                <br><code>/start</code> - Bot activate
+                <br><code>/stats</code> - View statistics  
+                <br><code>/reply hello Namaste</code> - Add auto reply
+                <br><code>/stop</code> - Pause bot
             </div>
         </div>
 
-        <div class="card">
-            <h3>⚙️ Auto Reply Setup</h3>
-            <div class="form-group">
-                <label>Enable Auto Reply</label>
-                <input type="checkbox" id="autoReplyToggle" {% if auto_reply_active %}checked{% endif %} onchange="toggleAutoReply()">
-            </div>
-            <div class="form-group">
-                <label>Trigger Word</label>
-                <input type="text" id="triggerWord" placeholder="hello">
-            </div>
-            <div class="form-group">
-                <label>Reply Message</label>
-                <textarea id="replyMsg" placeholder="Namaste bhai! ❤️">Namaste bhai! ❤️</textarea>
-            </div>
-            <button class="btn btn-primary" onclick="addAutoReply()">➕ Add Reply</button>
-        </div>
-
-        <div class="card">
-            <h3>📋 Recent Logs</h3>
+        <div class="glass-card">
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-terminal icon"></i>Live Logs</h3>
             <div class="logs" id="logsContainer">{{ logs_html|safe }}</div>
         </div>
     </div>
@@ -344,62 +442,36 @@ DASHBOARD_HTML = '''
     <script>
         function toggleBot(currentStatus) {
             const action = currentStatus ? 'stop' : 'start';
-            fetch(`/bot/${action}`).then(r => r.json()).then(data => location.reload());
+            fetch(`/bot/${action}`).then(r => r.json()).then(() => location.reload());
         }
 
         function setToken() {
             const token = document.getElementById('tokenInput').value.trim();
-            if (!token) { alert('❌ Token enter karo!'); return; }
-            
+            if (!token) return alert('❌ Enter token first!');
             fetch('/set_token', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({token: token})
             }).then(r => r.json()).then(data => {
                 if (data.success) {
-                    document.getElementById('tokenStatus').innerHTML = '✅ Token set!';
+                    document.getElementById('tokenStatus').innerHTML = '<i class="fas fa-check-circle"></i> Token Active';
                     document.getElementById('tokenStatus').className = 'status online';
-                    alert('🎉 Token set! Restart bot.');
-                } else {
-                    alert('❌ ' + data.error);
-                }
+                    alert('✅ Token set successfully!');
+                } else alert('❌ ' + data.error);
             });
         }
 
         function setGroupAdmin() {
             const groupId = document.getElementById('groupChatId').value.trim();
             const adminId = document.getElementById('adminUserId').value.trim();
-            
             fetch('/config/group_admin', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({group_id: groupId, admin_id: adminId})
-            }).then(r => r.json()).then(data => {
-                document.getElementById('groupStatus').innerHTML = '✅ Group & Admin set!';
+            }).then(r => r.json()).then(() => {
+                document.getElementById('groupStatus').innerHTML = '<i class="fas fa-check-circle"></i> Group & Admin Configured';
                 document.getElementById('groupStatus').className = 'status online';
-                alert('🎉 Settings saved!');
-            });
-        }
-
-        function toggleAutoReply() {
-            const isActive = document.getElementById('autoReplyToggle').checked;
-            fetch('/config/auto_reply', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({active: isActive})
-            });
-        }
-
-        function addAutoReply() {
-            const trigger = document.getElementById('triggerWord').value;
-            const reply = document.getElementById('replyMsg').value;
-            fetch('/config/add_reply', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({trigger: trigger, reply: reply})
-            }).then(() => {
-                alert('✅ Reply added!');
-                document.getElementById('triggerWord').value = '';
+                alert('✅ Settings saved!');
             });
         }
 
@@ -412,7 +484,7 @@ DASHBOARD_HTML = '''
     </script>
 </body>
 </html>
-'''
+"""
 
 @app.route('/')
 def dashboard():
@@ -427,7 +499,6 @@ def dashboard():
                                 today_welcomed=STATS["today_welcomed"],
                                 bot_status=bot_status,
                                 session_status=session_status,
-                                auto_reply_active=BOT_CONFIG["auto_reply_active"],
                                 logs_html=logs_html)
 
 @app.route('/logs')
@@ -448,7 +519,6 @@ def api_set_token():
         log(f"✅ Token set: {token[:20]}...")
         return jsonify({"success": True})
     except Exception as e:
-        log(f"❌ Token error: {str(e)}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/config/group_admin', methods=['POST'])
@@ -466,33 +536,16 @@ def api_start_bot():
     if load_session() and GROUP_CHAT_ID and ADMIN_USER_ID:
         start_bot()
         return jsonify({"status": "started"})
-    return jsonify({"status": "error", "message": "Complete setup first"})
+    return jsonify({"status": "error"})
 
 @app.route('/bot/stop', methods=['POST'])
 def api_stop_bot():
     stop_bot()
     return jsonify({"status": "stopped"})
 
-@app.route('/config/auto_reply', methods=['POST'])
-def api_toggle_auto_reply():
-    data = request.json
-    BOT_CONFIG["auto_reply_active"] = data.get('active', False)
-    log(f"🔄 Auto reply {'ON' if BOT_CONFIG['auto_reply_active'] else 'OFF'}")
-    return jsonify({"status": "updated"})
-
-@app.route('/config/add_reply', methods=['POST'])
-def api_add_reply():
-    data = request.json
-    trigger = data.get('trigger', '').lower().strip()
-    reply = data.get('reply', '').strip()
-    if trigger and reply:
-        BOT_CONFIG["auto_replies"][trigger] = reply
-        log(f"➕ Reply: '{trigger}' → '{reply[:30]}...'")
-    return jsonify({"status": "added"})
-
 if __name__ == '__main__':
     load_session()
     load_stats()
     load_group_config()
-    log("🚀 Instagram Group Bot Dashboard - http://0.0.0.0:5000")
+    log("🚀 Premium Instagram Group Bot - Port 5000")
     app.run(host='0.0.0.0', port=5000, debug=False)
