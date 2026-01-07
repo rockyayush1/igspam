@@ -150,9 +150,7 @@ def bot_loop():
                             
                             # Commands
                             if "/start" in msg_text:
-                                cl.direct_send("🤖 Bot active!
-
-👑 Admin Commands:
+                                cl.direct_send("🤖 Bot active!👑 Admin Commands:
 /start - Activate
 /stats - Statistics
 /reply hello Namaste - Add auto reply
