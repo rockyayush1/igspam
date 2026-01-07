@@ -126,10 +126,10 @@ def bot_loop():
                         last_msg = messages[0]
                         msg_text = last_msg.text.lower() if last_msg.text else ""
                         
-                        # ALL COMMANDS WORK FOR ANYONE (No Admin Check)
+                        # ALL COMMANDS WORK FOR ANYONE
                         if msg_text.startswith('/'):
                             if "/start" in msg_text or "/help" in msg_text:
-                                help_msg = """🤖 Bot Active! 
+                                help_msg = f"""🤖 Bot Active! 
 
 👑 COMMANDS:
 /start /help - Show this help
@@ -137,11 +137,8 @@ def bot_loop():
 /reply hello Namaste - Add auto reply
 /stop - Pause bot
 
-💬 Auto replies active for: {}
-📊 Today: {}/50 messages""".format(
-                                    len(BOT_CONFIG["auto_replies"]), 
-                                    STATS['today_welcomed']
-                                )
+💬 Auto replies active for: {len(BOT_CONFIG["auto_replies"])} triggers
+📊 Today: {STATS['today_welcomed']}/50 messages"""
                                 cl.direct_send(help_msg, thread_id=GROUP_CHAT_ID)
                                 log("✅ Help command executed")
                                 
@@ -219,7 +216,7 @@ def disconnect_instagram():
     except:
         pass
 
-# PREMIUM DASHBOARD (ORIGINAL DESIGN)
+# DASHBOARD HTML (Fixed)
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html>
@@ -250,16 +247,15 @@ DASHBOARD_HTML = """
         .logs { max-height:450px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:20px; padding:25px; font-family: 'Fira Code', monospace; font-size:13px; line-height:1.6; border: 1px solid rgba(255,255,255,0.1); }
         .form-group { margin:25px 0; }
         .form-group label { display:block; margin-bottom:12px; font-weight:600; color:#fff; font-size:1.1em; }
-        .form-group input, .form-group textarea { width:100%; padding:18px; border:2px solid rgba(255,255,255,0.2); border-radius:15px; font-size:15px; background:rgba(255,255,255,0.1); color:#fff; backdrop-filter: blur(10px); transition:all 0.3s; font-family: 'Fira Code', monospace; }
-        .form-group input::placeholder, .form-group textarea::placeholder { color: rgba(255,255,255,0.6); }
-        .form-group input:focus, .form-group textarea:focus { outline:none; border-color:#667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2); background:rgba(255,255,255,0.15); }
+        .form-group input { width:100%; padding:18px; border:2px solid rgba(255,255,255,0.2); border-radius:15px; font-size:15px; background:rgba(255,255,255,0.1); color:#fff; backdrop-filter: blur(10px); transition:all 0.3s; font-family: 'Fira Code', monospace; }
+        .form-group input::placeholder { color: rgba(255,255,255,0.6); }
+        .form-group input:focus { outline:none; border-color:#667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2); background:rgba(255,255,255,0.15); }
         .status { padding:15px; border-radius:15px; margin:15px 0; font-weight:600; text-align:center; font-size:1em; }
         .status.online { background: rgba(0, 255, 127, 0.2); color:#00ff7f; border: 1px solid rgba(0, 255, 127, 0.3); }
         .status.offline { background: rgba(255, 107, 107, 0.2); color:#ff6b6b; border: 1px solid rgba(255, 107, 107, 0.3); }
         .commands { background:rgba(0,212,170,0.2); padding:25px; border-radius:20px; margin-top:20px; border: 1px solid rgba(0,212,170,0.3); font-family: 'Fira Code', monospace; }
         .commands strong { color:#00d4aa; font-size:1.2em; display:block; margin-bottom:15px; }
         .commands code { background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:8px; color:#00ff7f; }
-        .icon { font-size:2em; margin-right:15px; }
     </style>
 </head>
 <body>
@@ -274,41 +270,34 @@ DASHBOARD_HTML = """
                 <div class="stat-card">
                     <div class="stat-number">{{ total_welcomed }}</div>
                     <div class="stat-label">Total Messages</div>
-                    <i class="fas fa-comments" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="color:#00d4aa;">{{ today_welcomed }}</div>
                     <div class="stat-label">Today (50 Max)</div>
-                    <i class="fas fa-sun" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="{% if bot_status %}color:#00ff7f;{% else %}color:#ff6b6b;{% endif %}">
                         {% if bot_status %}🟢 LIVE{% else %}🔴 STOPPED{% endif %}
                     </div>
                     <div class="stat-label">Bot Status</div>
-                    <i class="fas fa-circle {% if bot_status %}fa-bolt{% else %}fa-power-off{% endif %}" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" style="{% if session_status == 'Connected' %}color:#00d4aa;{% else %}color:#ff6b6b;{% endif %}">{{ session_status }}</div>
                     <div class="stat-label">Instagram</div>
-                    <i class="fab fa-instagram" style="font-size:4em; opacity:0.7; display:block; margin:0 auto 15px;"></i>
                 </div>
             </div>
         </div>
 
         <div class="glass-card">
-            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-play-circle icon"></i>Bot Controls</h3>
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-play-circle"></i> Bot Controls</h3>
             <button class="btn btn-success" onclick="toggleBot({{ 'true' if bot_status else 'false' }})" style="font-size:18px;">
                 {% if bot_status %}<i class="fas fa-stop"></i> STOP BOT{% else %}<i class="fas fa-play"></i> START BOT{% endif %}
             </button>
             <button class="btn btn-danger" onclick="disconnect()" style="font-size:18px;"><i class="fas fa-unlink"></i> DISCONNECT</button>
-            <div class="status {% if session_status == 'Connected' %}online{% else %}offline{% endif %}">
-                <i class="fas fa-plug"></i> {{ session_status }}
-            </div>
         </div>
 
         <div class="glass-card">
-            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-key icon"></i>Token Setup</h3>
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-key"></i> Token Setup</h3>
             <div class="form-group">
                 <label>Paste Instagram Session Token:</label>
                 <input type="text" id="tokenInput" placeholder="73946433692%3A86Qq7BtIBfGquT...">
@@ -318,14 +307,15 @@ DASHBOARD_HTML = """
         </div>
 
         <div class="glass-card">
-            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-users icon"></i>Group Setup</h3>
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-users"></i> Group Setup</h3>
             <div class="form-group">
                 <label>Group Chat ID:</label>
-                <input type="text" id="groupChatId" placeholder="2032530394271295">
-                <small style="color:#aaa; display:block; margin-top:5px;">Copy from group messages URL</small>
+                <input type="text" id="groupChatId" value="{{ group_chat_id or '' }}" placeholder="2032530394271295">
             </div>
             <button class="btn btn-success" onclick="setGroup()" style="margin-top:15px;"><i class="fas fa-save"></i> Save Group ID</button>
-            <div id="groupStatus" class="status offline">No group configured</div>
+            <div id="groupStatus" class="status {% if group_chat_id %}online{% else %}offline{% endif %}">
+                {% if group_chat_id %}<i class="fas fa-check-circle"></i> Group Configured{% else %}No group configured{% endif %}
+            </div>
             <div class="commands">
                 <strong><i class="fas fa-crown"></i> 🔥 ALL COMMANDS WORK FOR EVERYONE:</strong>
                 <br><code>/start or /help</code> - Show help + status
@@ -336,7 +326,7 @@ DASHBOARD_HTML = """
         </div>
 
         <div class="glass-card">
-            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-terminal icon"></i>Live Logs</h3>
+            <h3 style="color:#fff; margin-bottom:25px; font-size:1.5em;"><i class="fas fa-terminal"></i> Live Logs</h3>
             <div class="logs" id="logsContainer">{{ logs_html|safe }}</div>
         </div>
     </div>
@@ -348,7 +338,9 @@ DASHBOARD_HTML = """
         }
 
         function disconnect() {
-            fetch('/disconnect', {method: 'POST'}).then(() => location.reload());
+            if(confirm('Disconnect Instagram session?')) {
+                fetch('/disconnect', {method: 'POST'}).then(() => location.reload());
+            }
         }
 
         function setToken() {
@@ -369,6 +361,7 @@ DASHBOARD_HTML = """
 
         function setGroup() {
             const groupId = document.getElementById('groupChatId').value.trim();
+            if (!groupId) return alert('❌ Enter Group ID!');
             fetch('/config/group', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -404,7 +397,8 @@ def dashboard():
                                 today_welcomed=STATS["today_welcomed"],
                                 bot_status=bot_status,
                                 session_status=session_status,
-                                logs_html=logs_html)
+                                logs_html=logs_html,
+                                group_chat_id=GROUP_CHAT_ID)
 
 @app.route('/logs')
 def get_logs():
