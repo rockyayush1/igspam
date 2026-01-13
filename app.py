@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 from flask import Flask, render_template_string, request, jsonify
 from instagrapi import Client
-from instagrapi.exceptions import ClientError, LoginRequired, PleaseWaitFewMinutes  # FIXED IMPORT
+from instagrapi.exceptions import ClientError, LoginRequired, PleaseWaitFewMinutes
 
 app = Flask(__name__)
 BOT_THREAD = None
@@ -28,33 +28,52 @@ MASTI = ["Party! 🎉", "Masti! 🥳", "Dhamaal! 💃", "Full ON! 🔥", "Enjoy!
 def run_bot(un, pw, wm, gids, dly, pol, ucn, ecmd, admin_ids, proxy=None):
     cl = Client()
     
-    # Proxy setup - simple
-    if proxy:
-        try:
-            cl.set_proxy(proxy)
-            log(f"Proxy set: {proxy}")
-        except:
-            log("Proxy failed, continuing without proxy")
+    # 🔥 AUTO PROXY ROTATION - IP BLACKLIST SOLUTION
+    proxies = [
+        "http://20.210.113.32:80",
+        "http://43.135.36.240:80",
+        "http://47.76.144.59:8888",
+        "http://103.129.196.138:45262",
+        "http://20.111.54.16:8123",
+        "http://proxy6.net:8080"
+    ]
     
-    # FIXED LOGIN - ONLY SYNTAX ERROR FIXED
-    try:
-        if os.path.exists(SESSION_FILE):
-            cl.load_settings(SESSION_FILE)
-            cl.login(un, pw)
-            log("Session loaded")
-        else:
-            cl.login(un, pw)
-            cl.dump_settings(SESSION_FILE)
-            log("Session saved")
-    except (LoginRequired, ClientError, PleaseWaitFewMinutes) as e:  # ✅ FIXED: Parentheses added
-        log("Login failed: " + str(e))
-        return
-    except Exception as e:
-        log("Login failed: " + str(e))
+    login_success = False
+    current_proxy = None
+    
+    # TRY ALL PROXIES UNTIL ONE WORKS
+    for proxy_try in proxies:
+        try:
+            log(f"🔄 Trying proxy: {proxy_try}")
+            cl.set_proxy(proxy_try)
+            time.sleep(3)
+            
+            if os.path.exists(SESSION_FILE):
+                cl.load_settings(SESSION_FILE)
+                cl.login(un, pw)
+                log("✅ Session loaded!")
+            else:
+                cl.login(un, pw)
+                cl.dump_settings(SESSION_FILE)
+                log("✅ New session saved!")
+            
+            current_proxy = proxy_try
+            login_success = True
+            log("🎉 LOGIN SUCCESS WITH PROXY!")
+            break
+            
+        except Exception as e:
+            log(f"❌ Proxy failed: {str(e)[:60]}")
+            cl = Client()  # Reset client
+            continue
+    
+    if not login_success:
+        log("💥 ALL PROXIES FAILED!")
         return
     
     log("Bot started!")
     log("Admins: " + str(admin_ids))
+    log(f"✅ Using working proxy: {current_proxy}")
     
     km = {}
     lm = {}
@@ -83,7 +102,6 @@ def run_bot(un, pw, wm, gids, dly, pol, ucn, ecmd, admin_ids, proxy=None):
                 try:
                     g = cl.direct_thread(gid)
                     
-                    # Spam feature - SAME AS ORIGINAL
                     if BOT_CONFIG["spam_active"].get(gid, False):
                         tu = BOT_CONFIG["target_spam"].get(gid, {}).get("username")
                         sm = BOT_CONFIG["target_spam"].get(gid, {}).get("message")
@@ -92,7 +110,6 @@ def run_bot(un, pw, wm, gids, dly, pol, ucn, ecmd, admin_ids, proxy=None):
                             log("Spam to @" + tu)
                             time.sleep(2)
                     
-                    # Commands - EXACT SAME AS ORIGINAL
                     if ecmd or BOT_CONFIG["auto_reply_active"]:
                         nm = []
                         if lm[gid]:
@@ -211,7 +228,6 @@ def run_bot(un, pw, wm, gids, dly, pol, ucn, ecmd, admin_ids, proxy=None):
                         if g.messages:
                             lm[gid] = g.messages[0].id
                     
-                    # Welcome new members - SAME AS ORIGINAL
                     cm = {u.pk for u in g.users}
                     nwm = cm - km[gid]
                     if nwm:
@@ -237,7 +253,7 @@ def run_bot(un, pw, wm, gids, dly, pol, ucn, ecmd, admin_ids, proxy=None):
             time.sleep(pol)
         except:
             pass
-    log("Stopped")
+    log("Bot stopped")
 
 @app.route("/")
 def index():
@@ -247,34 +263,253 @@ def index():
 def start_bot():
     global BOT_THREAD, STOP_EVENT
     if BOT_THREAD and BOT_THREAD.is_alive():
-        return jsonify({"message": "Running"})
+        return jsonify({"message": "Bot already running!"})
+    
     un = request.form.get("username")
     pw = request.form.get("password")
     wl = [m.strip() for m in request.form.get("welcome", "").splitlines() if m.strip()]
     gids = [g.strip() for g in request.form.get("group_ids", "").split(",") if g.strip()]
     adm = [a.strip() for a in request.form.get("admin_ids", "").split(",") if a.strip()]
-    proxy = request.form.get("proxy", "")  # Added proxy field
     
     if not un or not pw or not gids or not wl:
-        return jsonify({"message": "Fill fields"})
+        return jsonify({"message": "Fill all required fields!"})
     
     STOP_EVENT.clear()
-    BOT_THREAD = threading.Thread(target=run_bot, args=(un, pw, wl, gids, int(request.form.get("delay", 3)), int(request.form.get("poll", 5)), request.form.get("use_custom_name") == "yes", request.form.get("enable_commands") == "yes", adm, proxy), daemon=True)
+    BOT_THREAD = threading.Thread(
+        target=run_bot, 
+        args=(
+            un, pw, wl, gids, 
+            int(request.form.get("delay", 3)), 
+            int(request.form.get("poll", 5)), 
+            request.form.get("use_custom_name") == "yes", 
+            request.form.get("enable_commands") == "yes", 
+            adm, None
+        ), 
+        daemon=True
+    )
     BOT_THREAD.start()
-    return jsonify({"message": "Started!"})
+    log("🚀 Bot started via Web UI!")
+    return jsonify({"message": "✅ Bot Started! Auto Proxy Active!"})
 
 @app.route("/stop", methods=["POST"])
 def stop_bot():
+    global BOT_THREAD
     STOP_EVENT.set()
-    return jsonify({"message": "Stopped!"})
+    if BOT_THREAD:
+        BOT_THREAD.join(timeout=3)
+    log("🛑 Bot stopped via Web UI!")
+    return jsonify({"message": "✅ Bot Stopped!"})
 
 @app.route("/logs")
 def get_logs():
     return jsonify({"logs": LOGS[-200:]})
 
-# YOUR ORIGINAL HTML - JUST ADDED PROXY FIELD
-PAGE_HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NEON BOT</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;min-height:100vh;background:#000;position:relative;color:#fff;padding:15px}body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background-image:url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1920&q=80');background-size:cover;background-position:center;opacity:.4;z-index:-2}body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 20% 50%,rgba(0,200,255,.2),transparent 60%),radial-gradient(circle at 80% 80%,rgba(255,0,150,.2),transparent 60%);z-index:-1}.c{max-width:700px;margin:0 auto;background:rgba(10,10,30,.5);border-radius:20px;padding:25px;border:2px solid rgba(0,255,255,.5);box-shadow:0 0 30px rgba(0,255,255,.3)}h1{text-align:center;font-size:50px;font-weight:900;margin-bottom:25px;background:linear-gradient(90deg,#0ff 0%,#f0f 50%,#ff0 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:5px;filter:drop-shadow(0 0 2px rgba(0,255,255,.8))}label{display:block;margin:12px 0 5px;font-weight:600;font-size:13px}.f1{color:#0ff}.f2{color:#ff00ff}.f3{color:#00ff88}.f4{color:#ffaa00}.f5{color:#ff0066}.f6{color:#00ddff}.f7{color:#88ff00}.f8{color:#ff6600}.f9{color:#ff1493}input,textarea,select{width:100%;padding:10px;border-radius:10px;background:rgba(0,20,40,.6);color:#fff;font-size:14px;transition:all .3s}input:focus,textarea:focus,select:focus{outline:0;transform:scale(1.02)}.i1{border:2px solid rgba(0,255,255,.5)}.i1:focus{border-color:#0ff;box-shadow:0 0 15px rgba(0,255,255,.5)}.i2{border:2px solid rgba(255,0,255,.5)}.i2:focus{border-color:#f0f;box-shadow:0 0 15px rgba(255,0,255,.5)}.i3{border:2px solid rgba(0,255,136,.5)}.i3:focus{border-color:#0f8;box-shadow:0 0 15px rgba(0,255,136,.5)}.i4{border:2px solid rgba(255,170,0,.5)}.i4:focus{border-color:#fa0;box-shadow:0 0 15px rgba(255,170,0,.5)}.i5{border:2px solid rgba(255,0,102,.5)}.i5:focus{border-color:#f06;box-shadow:0 0 15px rgba(255,0,102,.5)}.i6{border:2px solid rgba(0,221,255,.5)}.i6:focus{border-color:#0df;box-shadow:0 0 15px rgba(0,221,255,.5)}.i7{border:2px solid rgba(136,255,0,.5)}.i7:focus{border-color:#8f0;box-shadow:0 0 15px rgba(136,255,0,.5)}.i8{border:2px solid rgba(255,102,0,.5)}.i8:focus{border-color:#f60;box-shadow:0 0 15px rgba(255,102,0,.5)}.i9{border:2px solid rgba(255,20,147,.5)}.i9:focus{border-color:#ff1493;box-shadow:0 0 15px rgba(255,20,147,.5)}textarea{min-height:70px;resize:vertical}::placeholder{color:rgba(255,255,255,.4)}.bc{display:flex;justify-content:center;gap:15px;margin-top:25px}button{padding:12px 35px;font-size:16px;font-weight:700;border:none;border-radius:25px;cursor:pointer;text-transform:uppercase;transition:all .3s}.bs{background:linear-gradient(135deg,#0ff,#00a8cc);color:#000;box-shadow:0 0 20px rgba(0,255,255,.5)}.bp{background:linear-gradient(135deg,#f0f,#c00);color:#fff;box-shadow:0 0 20px rgba(255,0,255,.5)}.bs:hover,.bp:hover{transform:scale(1.08)}.ls{margin-top:30px}.lt{text-align:center;color:#0ff;font-size:20px;margin-bottom:15px;font-weight:700;text-shadow:0 0 10px rgba(0,255,255,.8)}.lb{background:rgba(0,0,0,.7);border:2px solid rgba(0,255,255,.4);border-radius:15px;padding:20px;height:200px;overflow-y:auto;font-family:monospace;font-size:13px;line-height:1.8;box-shadow:inset 0 0 20px rgba(0,255,255,.2)}.lb::-webkit-scrollbar{width:8px}.lb::-webkit-scrollbar-track{background:rgba(0,0,0,.5)}.lb::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#0ff,#f0f);border-radius:5px}.le{color:#0ff;margin-bottom:5px;text-shadow:0 0 5px rgba(0,255,255,.5)}@media(max-width:768px){.c{padding:20px}h1{font-size:36px}.bc{flex-direction:column}button{width:100%}}</style></head><body><div class="c"><h1>NEON BOT</h1><form id="f"><label class="f1">USERNAME</label><input class="i1" name="username" placeholder="Instagram username"><label class="f2">PASSWORD</label><input class="i2" type="password" name="password" placeholder="Password"><label class="f3">ADMINS</label><input class="i3" name="admin_ids" placeholder="admin1,admin2"><label class="f4">WELCOME</label><textarea class="i4" name="welcome" placeholder="Welcome to group!
-Glad you joined!"></textarea><label class="f5">MENTION?</label><select class="i5" name="use_custom_name"><option value="yes">Yes</option><option value="no">No</option></select><label class="f6">COMMANDS?</label><select class="i6" name="enable_commands"><option value="yes">Yes</option></select><label class="f9">PROXY</label><input class="i9" name="proxy" placeholder="http://user:pass@ip:port (optional)"><label class="f7">GROUPS</label><input class="i7" name="group_ids" placeholder="123456789,987654321"><label class="f8">DELAY</label><input class="i8" type="number" name="delay" value="3" min="1"><label class="f1">POLL</label><input class="i1" type="number" name="poll" value="5" min="3"><div class="bc"><button type="button" class="bs" onclick="start()">START</button><button type="button" class="bp" onclick="stop()">STOP</button></div></form><div class="ls"><div class="lt">LIVE LOGS</div><div class="lb" id="l">Waiting for bot...</div></div></div><script>async function start(){let r=await fetch('/start',{method:'POST',body:new FormData(document.getElementById('f'))});alert((await r.json()).message)}async function stop(){let r=await fetch('/stop',{method:'POST'});alert((await r.json()).message)}setInterval(async()=>{let r=await fetch('/logs');let d=await r.json();let b=document.getElementById('l');b.innerHTML=d.logs.map(l=>'<div class="le">'+l+'</div>').join('')||'Start bot...';b.scrollTop=b.scrollHeight},2000)</script></body></html>"""
+@app.route("/stats")
+def get_stats():
+    return jsonify(STATS)
+
+# 🔥 COMPLETE RESPONSIVE HTML UI WITH NEON EFFECTS
+PAGE_HTML = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>🔥 NEON INSTAGRAM BOT v3.0 🔥</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#0c0c0c 0%,#1a1a2e 50%,#16213e 100%);min-height:100vh;color:#fff;position:relative;overflow-x:hidden}
+        body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 20% 80%,rgba(120,119,198,0.3) 0%,transparent 50%),radial-gradient(circle at 80% 20%,rgba(255,119,198,0.3) 0%,transparent 50%),radial-gradient(circle at 40% 40%,rgba(120,219,255,0.3) 0%,transparent 50%);z-index:-1;animation:neonPulse 4s ease-in-out infinite alternate}
+        @keyframes neonPulse{0%{opacity:0.8}100%{opacity:1}}
+        .container{max-width:800px;margin:0 auto;padding:20px}
+        .header{text-align:center;margin-bottom:30px}
+        .logo{font-size:2.5em;font-weight:800;background:linear-gradient(45deg,#ff6b6b,#4ecdc4,#45b7d1,#96ceb4,#feca57);background-size:400% 400%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:gradientShift 3s ease infinite}
+        @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+        .subtitle{font-size:1.1em;color:#a0a0a0;margin-top:10px;animation:pulse 2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+        .card{background:rgba(255,255,255,0.05);backdrop-filter:blur(20px);border-radius:20px;border:1px solid rgba(255,255,255,0.1);padding:25px;margin-bottom:20px;box-shadow:0 20px 40px rgba(0,0,0,0.3)}
+        .card-title{font-size:1.3em;margin-bottom:15px;color:#4ecdc4;font-weight:600;text-align:center}
+        .form-group{margin-bottom:20px}
+        label{display:block;margin-bottom:8px;color:#b0b0b0;font-weight:500}
+        input,textarea,select{width:100%;padding:15px;border:2px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.05);color:#fff;font-size:16px;transition:all 0.3s ease}
+        input:focus,textarea:focus,select:focus{outline:none;border-color:#4ecdc4;box-shadow:0 0 20px rgba(78,205,196,0.3)}
+        textarea{height:120px;resize:vertical}
+        .checkbox-group{display:flex;align-items:center;gap:10px;margin:10px 0}
+        .btn{display:block;width:100%;padding:15px;font-size:18px;font-weight:600;border:none;border-radius:12px;cursor:pointer;transition:all 0.3s ease;margin:10px 0;text-transform:uppercase;letter-spacing:1px}
+        .btn-primary{background:linear-gradient(45deg,#ff6b6b,#4ecdc4);box-shadow:0 10px 30px rgba(78,205,196,0.4)}
+        .btn-primary:hover{background:linear-gradient(45deg,#4ecdc4,#ff6b6b);transform:translateY(-2px);box-shadow:0 15px 40px rgba(78,205,196,0.6)}
+        .btn-danger{background:linear-gradient(45deg,#ff4757,#ff3838);box-shadow:0 10px 30px rgba(255,71,87,0.4)}
+        .btn-danger:hover{background:linear-gradient(45deg,#ff3838,#ff4757);transform:translateY(-2px)}
+        .status{display:flex;align-items:center;gap:10px;padding:15px;border-radius:12px;margin:15px 0;font-weight:500}
+        .status.running{background:rgba(46,204,113,0.2);border:1px solid #46d113;color:#46d113}
+        .status.stopped{background:rgba(149,165,166,0.2);border:1px solid #95a5a6;color:#95a5a6}
+        .logs{max-height:400px;overflow-y:auto;background:rgba(0,0,0,0.5);border-radius:12px;padding:15px;border:1px solid rgba(255,255,255,0.1);font-family:monospace;font-size:14px;line-height:1.5}
+        .log-line{word-break:break-all;margin-bottom:5px}
+        .log-time{color:#4ecdc4}
+        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:15px;margin-top:15px}
+        .stat-card{background:rgba(255,255,255,0.05);padding:20px;border-radius:15px;text-align:center;border:1px solid rgba(255,255,255,0.1);transition:transform 0.3s ease}
+        .stat-card:hover{transform:translateY(-5px)}
+        .stat-value{font-size:2em;font-weight:800;color:#4ecdc4}
+        .stat-label{color:#a0a0a0;font-size:0.9em;margin-top:5px}
+        @media(max-width:768px){.container{padding:15px}.logo{font-size:2em}.card{padding:20px}}
+        .glow{animation:glow 2s ease-in-out infinite alternate}
+        @keyframes glow{from{text-shadow:0 0 10px #4ecdc4}to{text-shadow:0 0 20px #4ecdc4,0 0 30px #4ecdc4}}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="logo glow">🔥 NEON BOT v3.0</h1>
+            <p class="subtitle">Instagram Direct Bot | Auto Proxy | Full Commands</p>
+        </div>
+        
+        <div class="card" id="statusCard">
+            <div class="status stopped" id="status">
+                <span>🛑 Bot Stopped</span>
+            </div>
+        </div>
+        
+        <div class="stats-grid" id="statsGrid" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-value" id="totalWelcomed">0</div>
+                <div class="stat-label">Total Welcomed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="todayWelcomed">0</div>
+                <div class="stat-label">Today Welcomed</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">⚙️ Bot Settings</h2>
+            <form id="botForm">
+                <div class="form-group">
+                    <label>📱 Instagram Username</label>
+                    <input type="text" name="username" placeholder="your_username" required>
+                </div>
+                <div class="form-group">
+                    <label>🔐 Password</label>
+                    <input type="password" name="password" placeholder="your_password" required>
+                </div>
+                <div class="form-group">
+                    <label>👥 Group IDs (comma separated)</label>
+                    <input type="text" name="group_ids" placeholder="123456789,987654321" required>
+                </div>
+                <div class="form-group">
+                    <label>💬 Welcome Messages (one per line)</label>
+                    <textarea name="welcome" placeholder="Welcome bro! 🔥&#10;New member alert! 👋&#10;Hey enjoy the group! 🎉" required>Hey @user welcome to group! 🔥
+New member! Enjoy mastii! 🎉
+Hello brother! 😎</textarea>
+                </div>
+                <div class="form-group">
+                    <label>⏱️ Welcome Delay (seconds)</label>
+                    <input type="number" name="delay" value="3" min="1" max="10">
+                </div>
+                <div class="form-group">
+                    <label>🔄 Poll Interval (seconds)</label>
+                    <input type="number" name="poll" value="5" min="2" max="30">
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" name="use_custom_name" id="customName">
+                    <label for="customName">@username in welcome msg</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" name="enable_commands" id="commands" checked>
+                    <label for="commands">Enable Commands (/help)</label>
+                </div>
+                <div class="form-group">
+                    <label>👑 Admin Usernames (comma separated)</label>
+                    <input type="text" name="admin_ids" placeholder="admin1,admin2">
+                </div>
+                <button type="submit" class="btn btn-primary">🚀 START BOT</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <div style="display:flex;gap:10px;">
+                <button onclick="stopBot()" class="btn btn-danger" style="flex:1">🛑 STOP BOT</button>
+                <button onclick="refreshLogs()" class="btn" style="flex:1;background:rgba(255,255,255,0.1);color:#fff">🔄 REFRESH</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">📊 Live Logs</h2>
+            <div class="logs" id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        let logInterval;
+        const form = document.getElementById('botForm');
+        const logsDiv = document.getElementById('logs');
+        const statusDiv = document.getElementById('status');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            try {
+                const res = await fetch('/start', {method:'POST', body:formData});
+                const data = await res.json();
+                alert('✅ ' + data.message);
+                updateStatus('running');
+                refreshLogs();
+            } catch(e) {
+                alert('❌ Error: ' + e.message);
+            }
+        });
+        
+        async function stopBot() {
+            try {
+                const res = await fetch('/stop', {method:'POST'});
+                const data = await res.json();
+                alert('✅ ' + data.message);
+                updateStatus('stopped');
+            } catch(e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        function updateStatus(state) {
+            statusDiv.className = `status ${state}`;
+            statusDiv.innerHTML = state === 'running' ? '<span>🟢 Bot Running</span>' : '<span>🛑 Bot Stopped</span>';
+            document.getElementById('statsGrid').style.display = state === 'running' ? 'grid' : 'none';
+        }
+        
+        async function refreshLogs() {
+            try {
+                const res = await fetch('/logs');
+                const data = await res.json();
+                logsDiv.innerHTML = data.logs.map(log => {
+                    const timeMatch = log.match(/[(d{2}:d{2}:d{2})]/);
+                    const time = timeMatch ? timeMatch[1] : '';
+                    const message = log.replace(/[[d:s]+] /, '');
+                    return `<div class="log-line"><span class="log-time">[${time}]</span> ${message}</div>`;
+                }).join('');
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            } catch(e) {}
+        }
+        
+        async function updateStats() {
+            try {
+                const res = await fetch('/stats');
+                const stats = await res.json();
+                document.getElementById('totalWelcomed').textContent = stats.total_welcomed;
+                document.getElementById('todayWelcomed').textContent = stats.today_welcomed;
+            } catch(e) {}
+        }
+        
+        // Auto refresh
+        logInterval = setInterval(refreshLogs, 2000);
+        setInterval(updateStats, 5000);
+        
+        // Initial load
+        refreshLogs();
+        updateStats();
+    </script>
+</body>
+</html>"""
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    log("🌟 NEON BOT v3.0 Starting...")
+    log("📱 Web UI: http://localhost:5000")
+    log("🚀 Run: python app.py")
+    app.run(host="0.0.0.0", port=5000, debug=False)
