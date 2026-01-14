@@ -69,8 +69,8 @@ def run_bot(token, wm, gids, dly, pol, ucn, ecmd, admin_ids):
                     tu = BOT_CONFIG["target_spam"].get(gid, {}).get("username")
                     sm = BOT_CONFIG["target_spam"].get(gid, {}).get("message")
                     if tu and sm:
-                        cl.direct_send(f"@{tu} {sm}", thread_ids=[gid])
-                        log(f"💥 Spam to @{tu}")
+                        cl.direct_send("@{} {}".format(tu, sm), thread_ids=[gid])
+                        log("💥 Spam to @{}".format(tu))
                         time.sleep(2)
                 
                 # Message processing
@@ -93,7 +93,7 @@ def run_bot(token, wm, gids, dly, pol, ucn, ecmd, admin_ids):
                         t = (m.text or "").strip()
                         tl = t.lower()
                         
-                        log(f"📨 @{sender.username}: '{t[:30]}'")
+                        log("📨 @{}: '{}'".format(sender.username, t[:30]))
                         
                         # Auto-reply
                         if BOT_CONFIG["auto_reply_active"] and tl in BOT_CONFIG["auto_replies"]:
@@ -104,12 +104,12 @@ def run_bot(token, wm, gids, dly, pol, ucn, ecmd, admin_ids):
                         if not ecmd:
                             continue
                         
-                        # 🔥 ALL COMMANDS FIXED
+                        # 🔥 ALL COMMANDS - NO F-STRINGS!
                         if any(cmd in tl for cmd in ["/help", "!help", "/h", "!h"]):
-                            help_msg = """🔥 NEON BOT v3.1 COMMANDS:
+                            help_msg = "🔥 NEON BOT v3.2 COMMANDS:
 /help or /h - This help
 /stats - Bot statistics
-/count - Group members  
+/count - Group members
 /ping - Bot alive check
 /time - Current time
 /welcome - Test welcome
@@ -122,26 +122,29 @@ ADMIN ONLY:
 /stopreply - Stop auto reply
 /spam @user msg - Spam target
 /stopspam - Stop spam
-/kick @user - Remove user"""
+/kick @user - Remove user"
                             cl.direct_send(help_msg, thread_ids=[gid])
-                            log(f"✅ HELP sent to @{sender.username}")
+                            log("✅ HELP sent to @{}".format(sender.username))
                             
                         elif tl in ["/stats", "!stats"]:
-                            cl.direct_send(f"📊 STATS:
-Total: {STATS['total_welcomed']}
-Today: {STATS['today_welcomed']}", thread_ids=[gid])
+                            stats_msg = "📊 STATS:
+Total: {}
+Today: {}".format(STATS['total_welcomed'], STATS['today_welcomed'])
+                            cl.direct_send(stats_msg, thread_ids=[gid])
                             log("📊 Stats sent")
                             
                         elif tl in ["/count", "!count"]:
-                            cl.direct_send(f"👥 MEMBERS: {len(g.users)}", thread_ids=[gid])
-                            log(f"👥 Count: {len(g.users)}")
+                            count_msg = "👥 MEMBERS: {}".format(len(g.users))
+                            cl.direct_send(count_msg, thread_ids=[gid])
+                            log("👥 Count: {}".format(len(g.users)))
                             
                         elif tl in ["/ping", "!ping"]:
                             cl.direct_send("🏓 PONG! Bot 100% Alive 🔥", thread_ids=[gid])
                             log("🏓 Ping OK")
                             
                         elif tl in ["/time", "!time"]:
-                            cl.direct_send(f"🕐 {datetime.now().strftime('%H:%M:%S')}", thread_ids=[gid])
+                            time_msg = "🕐 {}".format(datetime.now().strftime('%H:%M:%S'))
+                            cl.direct_send(time_msg, thread_ids=[gid])
                             log("🕐 Time sent")
                             
                         elif tl.startswith("/autoreply "):
@@ -149,7 +152,8 @@ Today: {STATS['today_welcomed']}", thread_ids=[gid])
                             if len(parts) >= 3:
                                 BOT_CONFIG["auto_replies"][parts[1].lower()] = parts[2]
                                 BOT_CONFIG["auto_reply_active"] = True
-                                cl.direct_send(f"✅ Auto-reply: '{parts[1]}' → '{parts[2][:20]}...'", thread_ids=[gid])
+                                reply_msg = "✅ Auto-reply: '{}' → '{}'".format(parts[1], parts[2][:20])
+                                cl.direct_send(reply_msg, thread_ids=[gid])
                             else:
                                 cl.direct_send("❌ /autoreply trigger reply", thread_ids=[gid])
                                 
@@ -170,10 +174,8 @@ Today: {STATS['today_welcomed']}", thread_ids=[gid])
                             BOT_CONFIG["spam_active"][gid] = False
                             cl.direct_send("🛑 Spam OFF", thread_ids=[gid])
                             
-                        log(f"✅ Command processed for @{sender.username}")
-                        
                     except Exception as e:
-                        log(f"❌ Command error: {str(e)}")
+                        log("❌ Command error: {}".format(str(e)))
                 
                 if g.messages:
                     lm[gid] = g.messages[0].id
@@ -184,9 +186,9 @@ Today: {STATS['today_welcomed']}", thread_ids=[gid])
                 if new_members:
                     for u in g.users:
                         if u.pk in new_members:
-                            log(f"👤 NEW: @{u.username}")
+                            log("👤 NEW: @{}".format(u.username))
                             for msg in wm:
-                                welcome_msg = (f"@{u.username} " + msg) if ucn else msg
+                                welcome_msg = ("@{} ".format(u.username) + msg) if ucn else msg
                                 cl.direct_send(welcome_msg, thread_ids=[gid])
                                 STATS["total_welcomed"] += 1
                                 STATS["today_welcomed"] += 1
@@ -196,7 +198,7 @@ Today: {STATS['today_welcomed']}", thread_ids=[gid])
                 km[gid] = cm
                 
             except Exception as e:
-                log(f"❌ Group error: {str(e)}")
+                log("❌ Group error: {}".format(str(e)))
         
         time.sleep(pol)
     log("🛑 Bot stopped")
@@ -244,13 +246,13 @@ def stop_bot():
 def get_logs():
     return jsonify({"logs": LOGS[-100:]})
 
-# 🔥 FIXED HTML - PROPERLY CLOSED STRINGS
+# 🔥 CLEAN HTML - SINGLE QUOTES
 PAGE_HTML = '''<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🚀 NEON BOT v3.1</title>
+<title>🚀 NEON BOT v3.2</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#0c0c0c 0%,#1a1a2e 50%,#16213e 100%);min-height:100vh;color:#fff;padding:15px}
@@ -280,7 +282,7 @@ textarea{height:100px;resize:vertical}
 </head>
 <body>
 <div class="container">
-<h1>🚀 NEON BOT v3.1</h1>
+<h1>🚀 NEON BOT v3.2</h1>
 <div class="status offline" id="status">
 <span id="status-icon">🛑</span>
 <span id="status-text">Bot Offline</span>
@@ -327,25 +329,20 @@ Namaste ji 🙏</textarea>
 </div>
 
 <script>
-const form=document.getElementById('botForm'),startBtn=document.getElementById('startBtn'),stopBtn=document.getElementById('stopBtn'),status=document.getElementById('status'),logs=document.getElementById('logs');
+const form=document.getElementById("botForm"),startBtn=document.getElementById("startBtn"),stopBtn=document.getElementById("stopBtn"),status=document.getElementById("status"),logs=document.getElementById("logs");
 let interval;
-
-function updateStatus(running){status.className=running?'status online':'status offline';status.querySelector('#status-icon').textContent=running?'✅':'🛑';status.querySelector('#status-text').textContent=running?'Bot Online':'Bot Offline';startBtn.style.display=running?'none':'block';stopBtn.style.display=running?'block':'none';}
-
-function addLog(msg){const div=document.createElement('div');div.className='log-entry log-info';if(msg.includes('✅')||msg.includes('SUCCESS'))div.className+=' log-success';else if(msg.includes('❌')||msg.includes('FAILED')||msg.includes('ERROR'))div.className+=' log-error';div.textContent=msg;logs.appendChild(div);logs.scrollTop=logs.scrollHeight;}
-
-form.onsubmit=async e=>{e.preventDefault();const fd=new FormData(form);try{const r=await fetch('/start',{method:'POST',body:fd}),d=await r.json();addLog(d.message);updateStatus(true);clearInterval(interval);interval=setInterval(updateLogs,2000);}catch(e){addLog('❌ '+e.message);}};
-
-stopBtn.onclick=async()=>{try{const r=await fetch('/stop',{method:'POST'}),d=await r.json();addLog(d.message);updateStatus(false);clearInterval(interval);}catch(e){addLog('❌ '+e.message);}};
-
-async function updateLogs(){try{const r=await fetch('/logs'),d=await r.json();d.logs.slice(-10).forEach(addLog);}catch(e){}}
-
+function updateStatus(running){status.className=running?"status online":"status offline";status.querySelector("#status-icon").textContent=running?"✅":"🛑";status.querySelector("#status-text").textContent=running?"Bot Online":"Bot Offline";startBtn.style.display=running?"none":"block";stopBtn.style.display=running?"block":"none";}
+function addLog(msg){const div=document.createElement("div");div.className="log-entry log-info";if(msg.includes("✅")||msg.includes("SUCCESS"))div.className+=" log-success";else if(msg.includes("❌")||msg.includes("FAILED")||msg.includes("ERROR"))div.className+=" log-error";div.textContent=msg;logs.appendChild(div);logs.scrollTop=logs.scrollHeight;}
+form.onsubmit=async e=>{e.preventDefault();const fd=new FormData(form);try{const r=await fetch("/start",{method:"POST",body:fd}),d=await r.json();addLog(d.message);updateStatus(true);clearInterval(interval);interval=setInterval(updateLogs,2000);}catch(e){addLog("❌ "+e.message);}};
+stopBtn.onclick=async()=>{try{const r=await fetch("/stop",{method:"POST"}),d=await r.json();addLog(d.message);updateStatus(false);clearInterval(interval);}catch(e){addLog("❌ "+e.message);}};
+async function updateLogs(){try{const r=await fetch("/logs"),d=await r.json();d.logs.slice(-10).forEach(addLog);}catch(e){}}
 setInterval(updateLogs,3000);updateLogs();
 </script>
 </body>
 </html>'''
 
 if __name__ == "__main__":
-    log("🌟 NEON BOT v3.1 READY!")
-    log("📱 Open: http://localhost:5000")
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    log("🌟 NEON BOT v3.2 READY!")
+    port = int(os.environ.get("PORT", 5000))
+    log("📱 Open: http://localhost:{}".format(port))
+    app.run(host="0.0.0.0", port=port, debug=False)
