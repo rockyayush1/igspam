@@ -90,7 +90,7 @@ def run_bot(session_token, wm, gids, dly, pol, ucn, ecmd, admin_ids):
                         log("Spam sent")
                         time.sleep(2)
 
-                # -------- COMMANDS --------
+                                # -------- COMMANDS --------
                 if ecmd or BOT_CONFIG["auto_reply_active"]:
                     new_msgs = []
                     if lm[gid]:
@@ -113,7 +113,10 @@ def run_bot(session_token, wm, gids, dly, pol, ucn, ecmd, admin_ids):
                         tl = t.lower()
 
                         if BOT_CONFIG["auto_reply_active"] and tl in BOT_CONFIG["auto_replies"]:
-                            cl.direct_send(BOT_CONFIG["auto_replies"][tl], thread_ids=[gid])
+                            cl.direct_send(
+                                BOT_CONFIG["auto_replies"][tl],
+                                thread_ids=[gid]
+                            )
 
                         if not ecmd:
                             continue
@@ -126,44 +129,61 @@ def run_bot(session_token, wm, gids, dly, pol, ucn, ecmd, admin_ids):
                                 "/autoreply key msg/stopreply"
                                 "/music /funny /masti"
                                 "/spam @user msg/stopspam",
-                                thread_ids=[gid])
+                                thread_ids=[gid]
+                            )
 
                         elif tl in ["/ping","!ping"]:
                             cl.direct_send("Pong! ✅", thread_ids=[gid])
 
                         elif tl in ["/time","!time"]:
-                            cl.direct_send(datetime.now().strftime("%I:%M %p"), thread_ids=[gid])
+                            cl.direct_send(
+                                datetime.now().strftime("%I:%M %p"),
+                                thread_ids=[gid]
+                            )
 
                         elif tl in ["/uptime","!uptime"]:
-                            cl.direct_send(f"Uptime: {uptime()}", thread_ids=[gid])
-    
-    if tl in ["/about", "!about"]:
-    cl.direct_send(
-        "Instagram Premium Bot v4.0",
-        thread_ids=[gid]
-    )
+                            cl.direct_send(
+                                f"Uptime: {uptime()}",
+                                thread_ids=[gid]
+                            )
 
-elif tl.startswith("/autoreply "):
-    p = tl.split(" ", 2)
-    if len(p) == 3:
-        BOT_CONFIG["auto_replies"][p[1].lower()] = p[2]
-        BOT_CONFIG["auto_reply_active"] = True
+                        elif tl in ["/about", "!about"]:
+                            cl.direct_send(
+                                "Instagram Premium Bot v4.0",
+                                thread_ids=[gid]
+                            )
 
-elif tl in ["/stopreply", "!stopreply"]:
-    BOT_CONFIG["auto_reply_active"] = False
-    BOT_CONFIG["auto_replies"] = {}
+                        elif tl.startswith("/autoreply "):
+                            p = tl.split(" ", 2)
+                            if len(p) == 3:
+                                BOT_CONFIG["auto_replies"][p[1].lower()] = p[2]
+                                BOT_CONFIG["auto_reply_active"] = True
+
+                        elif tl in ["/stopreply", "!stopreply"]:
+                            BOT_CONFIG["auto_reply_active"] = False
+                            BOT_CONFIG["auto_replies"] = {}
+
                         elif tl in ["/music","!music"]:
-                            cl.direct_send(" ".join(random.choices(MUSIC_EMOJIS,k=5)), thread_ids=[gid])
+                            cl.direct_send(
+                                " ".join(random.choices(MUSIC_EMOJIS, k=5)),
+                                thread_ids=[gid]
+                            )
 
                         elif tl in ["/funny","!funny"]:
-                            cl.direct_send(random.choice(FUNNY), thread_ids=[gid])
+                            cl.direct_send(
+                                random.choice(FUNNY),
+                                thread_ids=[gid]
+                            )
 
                         elif tl in ["/masti","!masti"]:
-                            cl.direct_send(random.choice(MASTI), thread_ids=[gid])
+                            cl.direct_send(
+                                random.choice(MASTI),
+                                thread_ids=[gid]
+                            )
 
                         elif ia and tl.startswith("/spam "):
-                            p = t.split(" ",2)
-                            if len(p)==3:
+                            p = t.split(" ", 2)
+                            if len(p) == 3:
                                 BOT_CONFIG["target_spam"][gid] = {
                                     "username": p[1].replace("@",""),
                                     "message": p[2]
