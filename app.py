@@ -98,7 +98,7 @@ def execute_command(cmd, sender_username, thread_id):
 Videos: {len(MEDIA_LIBRARY['videos'])}
 Audios: {len(MEDIA_LIBRARY['audios'])}
 Funny: {len(MEDIA_LIBRARY['funny'])}
-Masti: {len(MEDIA_LIBRARY['masti'])}"
+Masti: {len(MEDIA_LIBRARY['masti'])}
         STATS["commands"] += 1
         return lib_info
     
